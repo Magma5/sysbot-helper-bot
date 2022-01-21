@@ -1,0 +1,46 @@
+token: TOKEN_HERE
+bot:
+  command_prefix: "&"
+  debug_guilds:
+    - 401014193211441153
+cogs:
+  sysbot:
+    ip: 192.168.0.1
+    port: 6000
+  text:
+    commands:
+      hello,hi: "Hello, {name}! Server time: **{now:%-I:%M %p}**"
+      ping: "▁▂▃▄▅▆▇█ Pong! █▇▆▅▄▃▂▁"
+      /goodmorning: |
+        Good morning {mention}!
+        Current server time is **{now:%-I:%M %p}**, {comment}
+        Your luck today: {luck:.1f}/{max_luck:d}
+      /goodnight: "It's {now:%-I %p}, good night {name}!"
+      /luck: |
+        Your luck today: {luck:.1f}/{max_luck:d}
+        Rating: {luck_rating}
+      /serverluck: |
+        Server luck today: {server_luck:.1f}/{max_luck:d}
+        Rating: {server_luck_rating}
+    load_files:
+      - static/*.txt
+  embeds:
+    load_files:
+      - static/*.md
+  luck:
+    mu: 80
+    sigma: 9
+    max_luck: 100
+    rating_levels: [55,60,65,70,75,80,85,90,95,100]
+    rating_stars: "★☆"
+  variables:
+    weekday_comments:
+      - happy Monday!
+      - have a great Tuesday!
+      - have a great Wednesday!
+      - have a fun Thursday!
+      - happy Friday!
+      - enjoy your Saturday!
+      - enjoy your Sunday! Don't forget to buy turnips in the morning!
+guilds:
+  timezone: America/Los_Angeles
