@@ -1,8 +1,8 @@
 from discord import slash_command, File
-from discord.commands.errors import CheckFailure
-from discord.commands.options import Option
-
 from discord.ext import commands
+from discord.commands.options import Option
+from discord.commands.errors import ApplicationCommandInvokeError
+
 from dataclasses import dataclass
 import asyncio
 import logging
@@ -24,6 +24,23 @@ class Sysbot(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         await self.connect()
+
+    async def cog_command_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.respond(f"Check failure: {str(error)}")
+            return
+
+        if isinstance(error, ApplicationCommandInvokeError):
+            cause = error.__cause__
+            if isinstance(cause, (ConnectionError, AttributeError)):
+                # Reply the name of the error
+                msg = f"Connection to switch may be down. Try again later.\nError: {cause.__class__.__name__}"
+                await ctx.send(msg)
+
+                # Try to reconnect and recover the connection
+                await self.connect()
+
+        raise error
 
     async def connect(self):
         self.reader, self.writer = await asyncio.open_connection(self.config.ip, self.config.port)
@@ -52,21 +69,6 @@ class Sysbot(commands.Cog):
         await self.send_command(command)
         await ctx.send(f'Your screen has been turned {action}.')
 
-    @screen.error
-    async def screen_error(self, ctx, error):
-        if isinstance(error, CheckFailure):
-            await ctx.respond(str(error))
-            return
-
-        logging.warning(error)
-
-        # Reply the name of the error
-        msg = f"Connection to switch may be down. Try again later.\n{error.__class__.__name__}\n"
-        await ctx.send(msg)
-
-        # Try to reconnect and recover the connection
-        await self.connect()
-
     @slash_command()
     @commands.is_owner()
     async def screenshot(self, ctx):
@@ -88,8 +90,3 @@ class Sysbot(commands.Cog):
         data.seek(0)
         file = File(data, filename="screen.jpg")
         await ctx.respond(file=file)
-
-    @screenshot.error
-    async def screenshot_error(self, ctx, error):
-        if isinstance(error, CheckFailure):
-            await ctx.respond(str(error))

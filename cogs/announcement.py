@@ -1,13 +1,34 @@
-from typing import List
 from discord.ext import commands
-from dataclasses import dataclass
+from discord import slash_command
 
 
 class Announcement(commands.Cog):
-    @dataclass
-    class Config:
-        channels: List[int]
-
-    def __init__(self, bot, config):
+    def __init__(self, bot):
         self.bot = bot
-        self.config = config
+
+    async def cog_command_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.respond(f"Check failure: {str(error)}")
+        raise error
+
+    async def do_announce(self, ctx, channel, template, message=None):
+        template = ctx.env.get_template(template)
+
+        parser = ctx.DiscordTextParser(template.render(message=message))
+        resp = parser.make_response(
+            color=channel.guild.get_member(
+                ctx.bot.user.id).color)
+        await channel.send(**resp)
+
+    @slash_command()
+    @commands.is_owner()
+    async def announce(self, ctx, message: str):
+        admin = self.bot.get_cog('Admin')
+        if not admin:
+            await ctx.respond('Admin cog is not loaded!')
+            return
+
+        await ctx.respond((
+            "Father, I will announce for you:\n```\n{}\n```".format(message)))
+        for channel in admin.config.get_channels(ctx):
+            await self.do_announce(ctx, channel, "admin/announce.md", message)

@@ -22,7 +22,7 @@ def get_now(tz_list):
         tz_list = [tz_list]
     zones = [ZoneInfo(zone) for zone in tz_list]
     now = datetime.now(timezone.utc)
-    result = { 'now': now.astimezone(zones[0]) }
+    result = {'now': now.astimezone(zones[0])}
     result.update({
         f'now_{zone.key.replace("/", "_")}':
         now.astimezone(zone)
@@ -72,7 +72,7 @@ async def run(bot_config):
 
 
 async def run_bots():
-    with open('stats.yml') as f:
+    with open('stats.yml', encoding='utf8') as f:
         stats_config = yaml.safe_load(f)
     await asyncio.gather(*(run(bot) for bot in stats_config))
 

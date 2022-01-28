@@ -12,15 +12,5 @@ class Variables(commands.Cog):
         self.bot = bot
         self.config = config
 
-    def template_variables(self, ctx):
-        # Use variables as-is first
-        variables = self.config.variables
-
-        # Process special variables
-        if 'weekday_comments' in variables:
-            now = self.bot.helper.server_now(ctx)
-            comment = variables['weekday_comments'][now.weekday()]
-            variables['comment'] = comment
-
-        # Return variables + processed variables
-        return variables
+    def template_variables(self, _):
+        return self.config.variables
