@@ -1,9 +1,14 @@
+import re
 from discord.enums import ChannelType
+from discord.errors import Forbidden, HTTPException
 from discord.ext import commands
 from discord import File
 from io import BytesIO
 
 from dataclasses import dataclass
+from discord.member import Member
+
+from discord.message import Message
 
 
 class Dm(commands.Cog):
@@ -28,31 +33,51 @@ class Dm(commands.Cog):
         await channel.send(template.render(message=message))
 
     @commands.Cog.listener("on_message")
-    async def on_message_reply(self, message):
+    async def on_message_reply(self, message: Message):
         if message.channel.id != self.config.channel:
             return
         if message.author == self.bot.user:
             return
 
-        # Determine the user to send to
-        user = None
+        # Determine the user ID to send to
+        user_id = None
+        content = message.content
+
+        # Reply the bot message, or mention the user or begin message with user ID
         if message.reference:
             ref = message.reference.resolved
-            if ref and ref.mentions and ref.author == self.bot.user:
-                user = ref.mentions[0]
-        elif len(message.mentions) == 1:
-            user = message.mentions[0]
+            if ref and ref.raw_mentions and ref.author == self.bot.user:
+                user_id = ref.raw_mentions[0]
+        else:
+            match = re.search(r'^(?:([0-9]{15,20})|<@!?([0-9]{15,20})>)\s*(.*)', content, flags=re.DOTALL)
+            if match:
+                user_id = int(match.group(1) or match.group(2))
+                content = match.group(3)
 
-        if not user or user == self.bot.user:
+        # Check user ID and fetch the user to send DM
+        if not user_id or user_id == self.bot.user.id:
+            return await message.delete()
+
+        user = await self.bot.get_or_fetch_user(user_id)
+        if not user:
             return await message.delete()
 
         # Attach files
         files = []
         for attachment in message.attachments:
-            content = await attachment.read()
-            io = BytesIO(content)
+            data = await attachment.read()
+            io = BytesIO(data)
             files.append(File(io, filename=attachment.filename))
 
-        content = message.content.replace(f'<@{user.id}>', '').replace(f'<@!{user.id}>', '')
-        await user.send(content, files=files)
-        await message.add_reaction('✅')
+        try:
+            await user.send(content, files=files)
+        except Forbidden:
+            await message.add_reaction('❌')
+            await message.add_reaction('4️⃣')
+            await message.add_reaction('0️⃣')
+            await message.add_reaction('3️⃣')
+        except Exception:
+            await message.delete()
+            raise
+        else:
+            await message.add_reaction('✅')
