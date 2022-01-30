@@ -13,7 +13,7 @@ class Luck(commands.Cog):
         day = time.replace(tzinfo=timezone.utc).timestamp() // period
         seed_user = struct.pack(user_id)
         seed_day = struct.pack(int(day))
-        seed = b'luck\x00\x00\x00\x00' + seed_user + seed_day
+        seed = salt + seed_user + seed_day
         rand = Random(seed)
         return min(max_luck, rand.gauss(mu, sigma))
 

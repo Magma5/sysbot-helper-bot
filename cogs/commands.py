@@ -3,8 +3,10 @@ from discord.ext import commands
 from dataclasses import dataclass, field
 from glob import glob
 from itertools import chain
-from os.path import splitext, basename
+from os.path import splitext, basename, join
 from random import choice
+
+from .parser import DiscordTextParser
 
 
 class Commands(commands.Cog):
@@ -18,29 +20,46 @@ class Commands(commands.Cog):
         self.config = config
         self.load_commands()
 
-    def make_command_from_file(self, name, fn):
-        @self.bot.make_command(name=name)
-        def _(ctx):
-            template = ctx.env.get_template(fn)
-            parser = ctx.DiscordTextParser(
-                template.render(
-                    ctx.template_variables()))
-            response = parser.make_response(color=ctx.author.color)
-            return response
+    def make_text_command(self, name, filename=None, text=None):
+        command_options = {'name': name}
+        send_embed = False
 
-    def make_command_from_text(self, name, text):
-        @self.bot.make_command(name=name)
+        # Pre-process the command, read special command options
+        if filename is not None:
+            with open(join('templates', filename), encoding='utf-8') as f:
+                parser = DiscordTextParser(f.read())
+            headers = parser.headers
+
+            # Process the special key "command" that will pass as command options
+            if headers:
+                options = headers.pop('command', {})
+                command_options.update(options)
+
+            # If there are still some headers remain, then we need to send as embed
+            if headers:
+                send_embed = True
+
+        @self.bot.make_command(**command_options)
         def _(ctx):
-            selected_text = text
-            # If text is a list, then randomly send one of them
-            if isinstance(text, list):
-                selected_text = choice(text)
-            template = ctx.env.from_string(selected_text)
-            parser = ctx.DiscordTextParser(
-                template.render(
-                    ctx.template_variables()))
-            response = parser.make_response(color=ctx.author.color)
-            return response
+            # Reload the file each time the command updates
+            if filename is not None:
+                template = ctx.env.get_template(filename)
+            else:
+                # If text is a list, then randomly send one of them
+                selected_text = text
+                if isinstance(selected_text, list):
+                    selected_text = choice(text)
+                template = ctx.env.from_string(selected_text)
+
+            # Render the whole file before processing
+            variables = ctx.template_variables()
+            rendered = template.render(variables)
+            parser = DiscordTextParser(rendered)
+
+            # Send either normal message or embed
+            if send_embed:
+                return {'embed': parser.make_embed(color=ctx.author.color)}
+            return {'content': parser.description}
 
     def load_commands(self):
         files = set(chain(
@@ -48,7 +67,7 @@ class Commands(commands.Cog):
 
         for fn in files:
             name, _ = splitext(basename(fn))
-            self.make_command_from_file(name, fn)
+            self.make_text_command(name, filename=fn)
 
         for name, text in self.config.text.items():
-            self.make_command_from_text(name, text)
+            self.make_text_command(name, text=text)

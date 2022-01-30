@@ -1,5 +1,7 @@
 import logging
 
+from discord.ext.commands import Bot
+
 log = logging.getLogger(__name__)
 
 
@@ -9,7 +11,7 @@ class ConfigHelper:
         return ''.join(map(str.capitalize, key.split('_')))
 
     def __init__(self, bot, config):
-        self.bot = bot
+        self.bot: Bot = bot
         self.config = config
         self.cog_list = set()
 
@@ -60,24 +62,24 @@ class ConfigHelper:
 
     def make_command(self, **command_options):
         def wrap_command(func):
-            name = command_options['name']
+            name = command_options.pop('name')
+            aliases = command_options.pop('aliases', [])
+
             log.info('Register command name=%s', name)
 
             # Check slash command and text command
             if name.startswith('/') or name.startswith('_'):
-                command = self.bot.slash_command
+                command_deco = self.bot.slash_command
                 name = name[1:]
             else:
-                command = self.bot.command
+                command_deco = self.bot.command
 
             # Register aliases too
-            name_aliases = name.split(',', 1)
-            if len(name_aliases) > 1:
-                name, aliases = name_aliases
-                command_options['aliases'] = tuple(aliases.split(','))
-            command_options['name'] = name
+            name_aliases = name.split(',')
+            name, aliases = name_aliases[0], tuple(aliases + name_aliases[1:])
 
-            @command(**command_options)
+            # Register the actual command
+            @command_deco(name=name, aliases=aliases, **command_options)
             async def _(ctx):
                 respond_options = func(ctx)
                 if not respond_options:

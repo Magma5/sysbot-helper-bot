@@ -6,7 +6,6 @@ import argparse
 from jinja2 import Environment, FileSystemLoader
 
 from .helper import ConfigHelper
-from .parser import DiscordTextParser
 from importlib import import_module
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -41,6 +40,7 @@ def bot_main():
 
     # Setting up some variables to be available in bot and ctx
     bot.make_command = helper.make_command
+    bot.template_env = template_env
 
     @bot.before_invoke
     async def _(ctx):
@@ -48,7 +48,6 @@ def bot_main():
         ctx.guild_config = lambda: helper.guild_config(ctx)
         ctx.channel_config = lambda: helper.channel_config(ctx)
         ctx.env = template_env
-        ctx.DiscordTextParser = DiscordTextParser
 
     # Load the cogs from config file
     for pkg, configs in config.items():

@@ -10,14 +10,15 @@ class DiscordTextParser:
             self.split_text()
 
     def split_text(self):
-        headers, fields = "", ""
+        headers = ''
+        fields = ''
 
         # Find headers first
         headers_split = self._text.split('---\n', 1)
         if len(headers_split) == 1:
             content = headers_split[0]
         else:
-            headers, content = headers_split[1].split('---', 1)
+            headers, content = headers_split[1].split('\n---', 1)
 
         # Find description/fields split
         content_split = content.split('\n\n\n', 1)
@@ -53,7 +54,9 @@ class DiscordTextParser:
                     yield name, value
 
     def make_response(self, **kwargs):
-        if not self.headers:
+        headers = self.headers
+
+        if not headers:
             return {'content': self.description}
         return {'embed': self.make_embed(**kwargs)}
 
