@@ -1,5 +1,8 @@
-from discord.ext import commands
+from discord.commands.errors import ApplicationCommandInvokeError
 from discord import slash_command
+from discord.ext import commands
+
+from .parser import DiscordTextParser
 
 
 class Announcement(commands.Cog):
@@ -9,12 +12,14 @@ class Announcement(commands.Cog):
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             await ctx.respond(f"Check failure: {str(error)}")
+        elif isinstance(error, ApplicationCommandInvokeError):
+            await ctx.send(f"⛔ {str(error.__cause__)}")
         raise error
 
     async def do_announce(self, ctx, channel, template, message=None):
         template = ctx.env.get_template(template)
 
-        parser = ctx.DiscordTextParser(template.render(message=message))
+        parser = DiscordTextParser(template.render(message=message))
         resp = parser.make_response(
             color=channel.guild.get_member(
                 ctx.bot.user.id).color)

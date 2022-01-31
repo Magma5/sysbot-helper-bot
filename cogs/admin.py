@@ -1,8 +1,10 @@
 from discord.ext import commands
+from discord.commands.errors import ApplicationCommandInvokeError
 from time import time
 from typing import Dict, List
 from discord import slash_command, TextChannel
 from dataclasses import dataclass
+import asyncio
 
 
 class Admin(commands.Cog):
@@ -25,6 +27,8 @@ class Admin(commands.Cog):
     async def cog_command_error(self, ctx, error):
         if isinstance(error, commands.CheckFailure):
             await ctx.respond(f"Check failure: {str(error)}")
+        elif isinstance(error, ApplicationCommandInvokeError):
+            await ctx.send(f"⛔ {str(error.__cause__)}")
         raise error
 
     async def do_lock_unlock(self, ctx, action, send_summary=True):
@@ -57,9 +61,13 @@ class Admin(commands.Cog):
         # Edit the channel names and send an announcement
         announcement = self.bot.get_cog('Announcement')
         for channel in channel_list:
-            await channel.edit(name=name)
-            if announcement:
-                await announcement.do_announce(ctx, channel, "admin/change.md")
+            try:
+                # If we are rate limited then it will wait, but we want to send error instead
+                await asyncio.wait_for(channel.edit(name=name), timeout=3)
+                if announcement:
+                    await announcement.do_announce(ctx, channel, "admin/change.md")
+            except Exception as e:
+                await ctx.send(f"⛔ Error editing channel {channel.name} in {channel.guild.name}: {str(e)}")
 
     @property
     def votelock_remain(self):
@@ -76,12 +84,11 @@ class Admin(commands.Cog):
     async def votelock(self, ctx):
         self.votelock_expire()
         id = ctx.author.id
-        if id in self.votelock_list:
-            await ctx.send('You have already voted! Use {}votecancel to cancel your vote.\nYour vote will expire in {:.0f} seconds.'.format(
-                ctx.bot.command_prefix, self.config.vote_valid_seconds - time() + self.votelock_list[id]))
-            return
         self.votelock_list[id] = time()
-        if len(self.votelock_list) < self.config.vote_count_required:
+        if id in self.votelock_list:
+            await ctx.send('You have already voted! Use {}votecancel to cancel your vote.'.format(
+                ctx.bot.command_prefix))
+        elif len(self.votelock_list) < self.config.vote_count_required:
             await ctx.send('You have voted to lock the bot channels. {} more votes is needed.'.format(
                 self.votelock_remain))
         else:

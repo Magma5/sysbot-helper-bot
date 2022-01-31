@@ -1,13 +1,11 @@
 import re
 from discord.enums import ChannelType
-from discord.errors import Forbidden, HTTPException
+from discord.errors import Forbidden
 from discord.ext import commands
 from discord import File
 from io import BytesIO
 
 from dataclasses import dataclass
-from discord.member import Member
-
 from discord.message import Message
 
 
