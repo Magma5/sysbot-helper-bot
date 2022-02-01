@@ -18,6 +18,7 @@ class Dm(commands.Cog):
     class Config:
         channel: int
         forward_mentions: bool = True
+        suppress_user_embeds: bool = True
 
         @property
         def channels(self):
@@ -83,6 +84,10 @@ class Dm(commands.Cog):
         # Check if they are valid (Cannot send DM to a bot)
         if not target or (isinstance(target, User) and target.bot) or target.id in self.config.channels:
             return await message.delete()
+
+        # Remove all annoying user embeds in DM channel
+        if self.config.suppress_user_embeds and message.embeds:
+            await message.edit(suppress=True)
 
         # Attach files
         files = []
