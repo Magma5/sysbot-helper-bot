@@ -78,7 +78,7 @@ class Dm(commands.Cog):
             target = await self.bot.get_or_fetch_user(user_id)
             respond_reaction = '✅'
         elif channel_id:
-            target = await self.bot.fetch_channel(channel_id)
+            target = self.bot.get_channel(channel_id)
             respond_reaction = '#️⃣'
 
         # Check if they are valid (Cannot send DM to a bot)
