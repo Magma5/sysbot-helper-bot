@@ -1,7 +1,7 @@
 import re
 from discord.abc import User
 from discord.enums import ChannelType
-from discord.errors import Forbidden
+from discord.errors import HTTPException
 from discord.ext import commands
 from discord import File
 from io import BytesIO
@@ -38,7 +38,7 @@ class Dm(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        channel = self.bot.get_channel(self.config.channel)
+        channel = self.bot.get_partial_messageable(self.config.channels[0])
         template = self.bot.template_env.get_template('dm/dm.md')
         await channel.send(template.render(message=message, embeds=message.embeds))
 
@@ -78,40 +78,42 @@ class Dm(commands.Cog):
             target = await self.bot.get_or_fetch_user(user_id)
             respond_reaction = '✅'
         elif channel_id:
-            target = self.bot.get_channel(channel_id)
+            target = self.bot.get_partial_messageable(channel_id)
             respond_reaction = '#️⃣'
 
         # Check if they are valid (Cannot send DM to a bot)
         if not target or (isinstance(target, User) and target.bot) or target.id in self.config.channels:
             return await message.delete()
 
-        # Remove all annoying user embeds in DM channel
-        if self.config.suppress_user_embeds and message.embeds:
-            await message.edit(suppress=True)
-
-        # Attach files
-        files = []
-        for attachment in message.attachments:
-            data = await attachment.read()
-            io = BytesIO(data)
-            files.append(File(io, filename=attachment.filename))
-
-        # Try to parse it for embeds
-        if content.startswith('---'):
-            parser = DiscordTextParser(content)
-            response = parser.make_response()
-        else:
-            response = {'content': content}
-
         try:
+            # Try to parse it for embeds
+            if content.startswith('---'):
+                parser = DiscordTextParser(content)
+                response = parser.make_response()
+            else:
+                response = {'content': content}
+
+            # Attach files
+            files = []
+            for attachment in message.attachments:
+                data = await attachment.read()
+                io = BytesIO(data)
+                files.append(File(io, filename=attachment.filename))
+
             await target.send(**response, files=files)
-        except Forbidden:
-            await message.add_reaction('❌')
-            await message.add_reaction('4️⃣')
-            await message.add_reaction('0️⃣')
-            await message.add_reaction('3️⃣')
+        except HTTPException as e:
+            if e.status in (401, 402, 403):
+                await message.add_reaction('❌')
+                for i in str(e.status):
+                    await message.add_reaction(i + '\u20e3')
+            else:
+                return await message.delete()
         except Exception:
             await message.delete()
             raise
-        else:
+        else:  # Success
             await message.add_reaction(respond_reaction)
+
+        # Remove all annoying user embeds in DM channel
+        if self.config.suppress_user_embeds and message.embeds:
+            await message.edit(suppress=True)
