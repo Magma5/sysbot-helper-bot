@@ -1,13 +1,20 @@
+from cogs import CogSendError
+from enum import Enum
 from discord.ext import commands
-from discord.commands.errors import ApplicationCommandInvokeError
 from time import time
-from typing import Dict, List
+from typing import Dict, Iterable, List
 from discord import slash_command, TextChannel
 from dataclasses import dataclass
 import asyncio
 
 
-class Admin(commands.Cog):
+class ChannelAction(Enum):
+    LOCK = 1,
+    UNLOCK = 2
+
+
+class Admin(CogSendError):
+
     @dataclass
     class Config:
         channels: List[int]
@@ -16,34 +23,24 @@ class Admin(commands.Cog):
         vote_count_required: int = 3
 
         def get_channels(self, ctx):
-            for ch in self.channels:
-                yield ctx.bot.get_channel(ch)
+            return [ctx.bot.get_channel(ch) for ch in self.channels]
 
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
         self.votelock_list = {}
 
-    async def cog_command_error(self, ctx, error):
-        if isinstance(error, commands.CheckFailure):
-            await ctx.respond(f"Check failure: {str(error)}")
-        elif isinstance(error, ApplicationCommandInvokeError):
-            await ctx.send(f"⛔ {str(error.__cause__)}")
-        raise error
-
-    async def do_lock_unlock(self, ctx, action, send_summary=True):
-        # Gather channels needed
-        channel_list = [channel for channel in self.config.get_channels(ctx)]
-        if send_summary:
-            summary = '\n'.join(
-                channel.guild.name + ': ' + channel.name for channel in channel_list)
-            await ctx.respond("Father, I will {} the channels: \n\n{}".format(action, summary))
-        self.votelock_clear()
+    async def do_channel_action(self, channels, action: ChannelAction):
+        if not isinstance(channels, Iterable):
+            channels = [channels]
 
         # Lock channels by setting send_messages for @everyone to False
-        for channel in channel_list:
+        for channel in channels:
             overwrite = channel.overwrites_for(channel.guild.default_role)
-            overwrite.send_messages = False if action == "lock" else True
+            if action == ChannelAction.LOCK:
+                overwrite.send_messages = False
+            elif action == ChannelAction.UNLOCK:
+                overwrite.send_messages = None
             await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
 
     @slash_command()
@@ -52,15 +49,17 @@ class Admin(commands.Cog):
         name = name.strip()
 
         # Check if channel names need to change
-        channel_list = [channel for channel in self.config.get_channels(ctx)
-                        if channel.name != name]
-        summary = '\n'.join("{}: {} -> {}".format(channel.guild.name, channel.name, name)
-                            for channel in channel_list)
-        await ctx.respond("Father, I will set the names for you.\n\n{}".format(summary))
+        channels = [channel for channel in self.config.get_channels(ctx)
+                    if channel.name != name]
+
+        summary = ["Father, I will set these name for you.", ""]
+        for channel in channels:
+            summary.append("#{} ({}) -> {}".format(channel.name, channel.guild.name, name))
+        await ctx.respond("\n".join(summary))
 
         # Edit the channel names and send an announcement
         announcement = self.bot.get_cog('Announcement')
-        for channel in channel_list:
+        for channel in channels:
             try:
                 # If we are rate limited then it will wait, but we want to send error instead
                 await asyncio.wait_for(channel.edit(name=name), timeout=3)
@@ -75,7 +74,7 @@ class Admin(commands.Cog):
 
     def votelock_expire(self):
         self.votelock_list = {k: v for k, v in self.votelock_list.items()
-                              if time() - v <= self.config.vote_valid_seconds}
+                              if time() - v[0] <= self.config.vote_valid_seconds}
 
     def votelock_clear(self):
         self.votelock_list.clear()
@@ -83,55 +82,82 @@ class Admin(commands.Cog):
     @commands.command()
     async def votelock(self, ctx):
         self.votelock_expire()
-        id = ctx.author.id
-        self.votelock_list[id] = time()
-        if id in self.votelock_list:
-            await ctx.send('You have already voted! Use {}votecancel to cancel your vote.'.format(
-                ctx.bot.command_prefix))
-        elif len(self.votelock_list) < self.config.vote_count_required:
-            await ctx.send('You have voted to lock the bot channels. {} more votes is needed.'.format(
-                self.votelock_remain))
+
+        if ctx.author.id in self.votelock_list:
+            await ctx.send(f'You have already voted! Use {ctx.prefix}votecancel to cancel your vote.')
+        elif self.votelock_remain > 1:
+            await ctx.send(f'You have voted to lock the bot channels. {self.votelock_remain - 1} more votes is needed.')
         else:
             await ctx.send('You have voted to lock the bot channels. Channel will be locked shortly.')
-            await self.do_lock_unlock(ctx, 'lock', False)
+            self.votelock_clear()
+            await self.do_channel_action(self.config.channels, ChannelAction.LOCK)
+
+        self.votelock_list[ctx.author.id] = time(), ctx.author.name, ctx.guild.name
+
+    @commands.command()
+    @commands.is_owner()
+    async def votelist(self, ctx):
+        self.votelock_expire()
+
+        content = ["Votelock user list:"]
+        for timestamp, author, guild in self.votelock_list.values():
+            content.append('{} ({}): {:.0f}s ago'.format(author, guild, time() - timestamp))
+
+        await ctx.send('\n'.join(content))
 
     @commands.command()
     async def votecancel(self, ctx):
         self.votelock_expire()
-        id = ctx.author.id
-        if id in self.votelock_list:
-            self.votelock_list.pop(id)
-            await ctx.send('You vote has been removed. {} more votes is needed.'.format(
-                self.votelock_remain))
+        if ctx.author.id in self.votelock_list:
+            self.votelock_list.pop(ctx.author.id)
+            await ctx.send(f'You vote has been removed. {self.votelock_remain} more votes is needed.')
         else:
-            await ctx.send('You have not voted! Use {}votelock to vote.'.format(ctx.bot.command_prefix))
+            await ctx.send(f'You have not voted! Use {ctx.prefix}votelock to vote.')
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_permissions(manage_channels=False)
     async def lock(self, ctx, channel: TextChannel = None):
-        await ctx.message.delete()
         chan = channel or ctx.channel
+
         overwrite = chan.overwrites_for(chan.guild.default_role)
-        overwrite.send_messages = False
-        await chan.set_permissions(chan.guild.default_role, overwrite=overwrite)
+        if overwrite.send_messages is False:
+            return await ctx.send('The channel is already locked!')
+
+        await self.do_channel_action(chan, ChannelAction.LOCK)
         await ctx.send(self.config.messages['lock'])
 
     @commands.command()
-    @commands.has_permissions(manage_channels=True)
+    @commands.has_permissions(manage_channels=False)
     async def unlock(self, ctx, channel: TextChannel = None):
-        await ctx.message.delete()
         chan = channel or ctx.channel
+
         overwrite = chan.overwrites_for(chan.guild.default_role)
-        overwrite.send_messages = True
-        await chan.set_permissions(chan.guild.default_role, overwrite=overwrite)
+        if overwrite.send_messages in (None, True):
+            return await ctx.send('The channel is already unlocked!')
+
+        await self.do_channel_action(chan, ChannelAction.UNLOCK)
         await ctx.send(self.config.messages['unlock'])
 
     @slash_command()
     @commands.is_owner()
     async def lockall(self, ctx):
-        await self.do_lock_unlock(ctx, 'lock')
+        summary = ["Father, I will lock these channels:", ""]
+
+        channels = self.config.get_channels(ctx)
+        for channel in channels:
+            summary.append(f"#{channel.name} ({channel.guild.name})")
+
+        await ctx.respond('\n'.join(summary))
+        await self.do_channel_action(channels, ChannelAction.LOCK)
 
     @slash_command()
     @commands.is_owner()
     async def unlockall(self, ctx):
-        await self.do_lock_unlock(ctx, 'unlock')
+        summary = ["Father, I will unlock these channels:", ""]
+
+        channels = self.config.get_channels(ctx)
+        for channel in channels:
+            summary.append(f"#{channel.name} ({channel.guild.name})")
+
+        await ctx.respond('\n'.join(summary))
+        await self.do_channel_action(channels, ChannelAction.UNLOCK)
