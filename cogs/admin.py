@@ -115,7 +115,7 @@ class Admin(CogSendError):
             await ctx.send(f'You have not voted! Use {ctx.prefix}votelock to vote.')
 
     @commands.command()
-    @commands.has_permissions(manage_channels=False)
+    @commands.has_permissions(manage_channels=True)
     async def lock(self, ctx, channel: TextChannel = None):
         chan = channel or ctx.channel
 
@@ -127,7 +127,7 @@ class Admin(CogSendError):
         await ctx.send(self.config.messages['lock'])
 
     @commands.command()
-    @commands.has_permissions(manage_channels=False)
+    @commands.has_permissions(manage_channels=True)
     async def unlock(self, ctx, channel: TextChannel = None):
         chan = channel or ctx.channel
 
