@@ -90,7 +90,7 @@ class Admin(CogSendError):
         else:
             await ctx.send('You have voted to lock the bot channels. Channel will be locked shortly.')
             self.votelock_clear()
-            await self.do_channel_action(self.bot_channels(ctx), ChannelAction.LOCK)
+            return await self.do_channel_action(self.bot_channels(ctx), ChannelAction.LOCK)
 
         self.votelock_list[ctx.author.id] = time(), ctx.author.name, ctx.guild.name
 
