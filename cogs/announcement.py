@@ -26,5 +26,5 @@ class Announcement(CogSendError):
             return await ctx.respond('Admin cog is not loaded!')
 
         await ctx.respond((f"Father, I will announce for you:\n\n{message}"))
-        for channel in admin.config.get_channels(ctx):
+        for channel in admin.bot_channels(ctx):
             await self.do_announce(ctx, channel, "admin/announce.md", message=message)

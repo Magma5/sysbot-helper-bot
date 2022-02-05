@@ -2,7 +2,7 @@ from cogs import CogSendError
 from enum import Enum
 from discord.ext import commands
 from time import time
-from typing import Dict, Iterable, List
+from collections.abc import Iterable
 from discord import slash_command, TextChannel
 from dataclasses import dataclass
 import asyncio
@@ -18,18 +18,17 @@ class Admin(CogSendError):
 
     @dataclass
     class Config:
-        channels: List[int]
-        messages: Dict
+        messages: dict[str, str]
         vote_valid_seconds: int = 300
         vote_count_required: int = 3
-
-        def get_channels(self, ctx):
-            return [ctx.bot.get_channel(ch) for ch in self.channels]
 
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
         self.votelock_list = {}
+
+    def bot_channels(self, ctx):
+        return [ctx.bot.get_channel(ch) for ch in ctx.channel_groups.get('sysbots')]
 
     async def do_channel_action(self, channels, action: ChannelAction):
         if not isinstance(channels, Iterable):
@@ -50,7 +49,7 @@ class Admin(CogSendError):
         name = name.strip()
 
         # Check if channel names need to change
-        channels = [channel for channel in self.config.get_channels(ctx)
+        channels = [channel for channel in self.bot_channels(ctx)
                     if channel.name != name]
 
         summary = ["Father, I will set these name for you.", ""]
@@ -91,7 +90,7 @@ class Admin(CogSendError):
         else:
             await ctx.send('You have voted to lock the bot channels. Channel will be locked shortly.')
             self.votelock_clear()
-            await self.do_channel_action(self.config.channels, ChannelAction.LOCK)
+            await self.do_channel_action(self.bot_channels(ctx), ChannelAction.LOCK)
 
         self.votelock_list[ctx.author.id] = time(), ctx.author.name, ctx.guild.name
 
@@ -144,7 +143,7 @@ class Admin(CogSendError):
     async def lockall(self, ctx):
         summary = ["Father, I will lock these channels:", ""]
 
-        channels = self.config.get_channels(ctx)
+        channels = self.bot_channels(ctx)
         for channel in channels:
             summary.append(f"#{channel.name} ({channel.guild.name})")
 
@@ -156,7 +155,7 @@ class Admin(CogSendError):
     async def unlockall(self, ctx):
         summary = ["Father, I will unlock these channels:", ""]
 
-        channels = self.config.get_channels(ctx)
+        channels = self.bot_channels(ctx)
         for channel in channels:
             summary.append(f"#{channel.name} ({channel.guild.name})")
 

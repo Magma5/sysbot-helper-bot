@@ -4,6 +4,9 @@ bot:
   debug_guilds:
     - 771477382409879602
   help_command: null
+sudo: []
+sysbot_channels:
+  - 797864915750355016
 cogs:
   sysbot:
     ip: 192.168.0.1
@@ -53,8 +56,6 @@ cogs:
       - enjoy your Sunday! Don't forget to buy turnips in the morning!
   announcement: {}
   admin:
-    channels:
-      - 797864915750355016
     vote_valid_seconds: 300
     vote_count_required: 3
     messages:

@@ -50,7 +50,15 @@ class Groups:
         return all(self.in_group(member_id, group) for group in groups)
 
     def get(self, name):
+        if isinstance(name, int):
+            return set([name])
         return self.groups.get(name, set())
+
+    def get_all(self, *names):
+        result = set()
+        for name in names:
+            result.update(self.get(name))
+        return result
 
     def __repr__(self) -> str:
         return self.groups.__repr__()
@@ -64,6 +72,11 @@ class ConfigHelper:
     def cog_name(cls, key):
         return ''.join(map(str.capitalize, key.split('_')))
 
+    config_group_mappings = {
+        'sudo': ('user', 'sudo'),
+        'sysbot_channels': ('channel', 'sysbots')
+    }
+
     def __init__(self, config):
         self.bot = Bot(**config.pop('bot', {}))
         self.configs = {
@@ -76,7 +89,12 @@ class ConfigHelper:
             'channel': Groups(config.pop('channel_groups', {})),
             'user': Groups(config.pop('user_groups', {})),
         }
-        self.user_groups().add_group({'sudo': config.pop('sudo', {})})
+
+        for k, v in self.config_group_mappings.items():
+            if k in config:
+                group_type, group_name = v
+                self.groups[group_type].add_group({group_name: config.pop(k)})
+
         self.cog_config = config
         self.cog_list = set()
 
