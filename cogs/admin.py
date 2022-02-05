@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List
 from discord import slash_command, TextChannel
 from dataclasses import dataclass
 import asyncio
+from .checks import is_sudo
 
 
 class ChannelAction(Enum):
@@ -44,7 +45,7 @@ class Admin(CogSendError):
             await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
 
     @slash_command()
-    @commands.is_owner()
+    @is_sudo()
     async def change(self, ctx, name: str):
         name = name.strip()
 
@@ -95,7 +96,7 @@ class Admin(CogSendError):
         self.votelock_list[ctx.author.id] = time(), ctx.author.name, ctx.guild.name
 
     @commands.command()
-    @commands.is_owner()
+    @is_sudo()
     async def votelist(self, ctx):
         self.votelock_expire()
 
@@ -139,7 +140,7 @@ class Admin(CogSendError):
         await ctx.send(self.config.messages['unlock'])
 
     @slash_command()
-    @commands.is_owner()
+    @is_sudo()
     async def lockall(self, ctx):
         summary = ["Father, I will lock these channels:", ""]
 
@@ -151,7 +152,7 @@ class Admin(CogSendError):
         await self.do_channel_action(channels, ChannelAction.LOCK)
 
     @slash_command()
-    @commands.is_owner()
+    @is_sudo()
     async def unlockall(self, ctx):
         summary = ["Father, I will unlock these channels:", ""]
 

@@ -1,7 +1,7 @@
-from cogs import CogSendError
 from discord import slash_command
-from discord.ext import commands
 
+from . import CogSendError
+from .checks import is_sudo
 from .parser import DiscordTextParser
 
 
@@ -19,7 +19,7 @@ class Announcement(CogSendError):
         await channel.send(**resp)
 
     @slash_command()
-    @commands.is_owner()
+    @is_sudo()
     async def announce(self, ctx, message: str):
         admin = self.bot.get_cog('Admin')
         if not admin:

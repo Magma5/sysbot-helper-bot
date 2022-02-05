@@ -5,18 +5,83 @@ from discord.ext.commands import Bot
 log = logging.getLogger(__name__)
 
 
+class Groups:
+    def __init__(self, config):
+        self.groups = {}
+        self.groups['all'] = set()
+        self.add_group(config)
+
+    def add_group(self, config):
+        all_members, groups = self.flatten_groups(config)
+        self.groups['all'].update(all_members)
+        self.groups.update(groups)
+
+    def flatten_groups(self, config):
+        groups = {}
+        all_members = set()
+
+        if isinstance(config, int):
+            all_members.add(config)
+
+        elif isinstance(config, list):
+            for v in config:
+                members, subgroups = self.flatten_groups(v)
+                all_members.update(members)
+                groups.update(subgroups)
+
+        elif isinstance(config, dict):
+            for k, v in config.items():
+                members, subgroups = self.flatten_groups(v)
+                all_members.update(members)
+                groups[k] = members
+                groups.update(subgroups)
+
+        return all_members, groups
+
+    def in_group(self, member_id, name):
+        if name not in self.groups:
+            return False
+        return member_id in self.groups[name]
+
+    def in_group_any(self, member_id, groups):
+        return any(self.in_group(member_id, group) for group in groups)
+
+    def in_group_all(self, member_id, groups):
+        return all(self.in_group(member_id, group) for group in groups)
+
+    def get(self, name):
+        return self.groups.get(name, set())
+
+    def __repr__(self) -> str:
+        return self.groups.__repr__()
+
+    def __str__(self) -> str:
+        return self.groups.__str__()
+
+
 class ConfigHelper:
     @classmethod
     def cog_name(cls, key):
         return ''.join(map(str.capitalize, key.split('_')))
 
-    def __init__(self, bot, config):
-        self.bot: Bot = bot
-        self.config = config
+    def __init__(self, config):
+        self.bot = Bot(**config.pop('bot', {}))
+        self.configs = {
+            'guild': config.pop('guilds', {}),
+            'channel': config.pop('channels', {}),
+            'user': config.pop('users', {})
+        }
+        self.groups = {
+            'guild': Groups(config.pop('guild_groups', {})),
+            'channel': Groups(config.pop('channel_groups', {})),
+            'user': Groups(config.pop('user_groups', {})),
+        }
+        self.user_groups().add_group({'sudo': config.pop('sudo', {})})
+        self.cog_config = config
         self.cog_list = set()
 
     def get_config(self, category, key=None):
-        raw_config = self.config[category]
+        raw_config = self.configs[category]
 
         # Filter all non-int keys as global config
         config = {k: v for k, v in raw_config if not isinstance(k, int)}
@@ -29,13 +94,19 @@ class ConfigHelper:
 
     def guild_config(self, ctx):
         if ctx.guild:
-            return self.get_config('guilds', ctx.guild.id)
-        return self.get_config('guilds')
+            return self.get_config('guild', ctx.guild.id)
+        return self.get_config('guild')
 
     def channel_config(self, ctx):
         if ctx.channel:
-            return self.get_config('channels', ctx.channel.id)
-        return self.get_config('channels')
+            return self.get_config('channel', ctx.channel.id)
+        return self.get_config('channel')
+
+    def channel_groups(self):
+        return self.groups['channel']
+
+    def user_groups(self):
+        return self.groups['user']
 
     def get_cog(self, key):
         return self.bot.get_cog(self.cog_name(key))

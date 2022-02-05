@@ -24,15 +24,12 @@ def bot_main():
         config = yaml.safe_load(f)
 
     # Initialize bot from config
-    config_bot = config.pop('bot', {})
-    bot = commands.Bot(**config_bot)
-    token = config.pop('token', environ.get('TOKEN'))
+    config_token = config.pop('token', None)
+    token = environ.get('TOKEN') or config_token
 
     # Initialize config helper
-    helper = ConfigHelper(bot, {
-        'guilds': config.pop('guilds', {}),
-        'channels': config.pop('channels', {})
-    })
+    helper = ConfigHelper(config)
+    bot = helper.bot
 
     # Initialize Jinja2 template environment
     template_env = Environment(
@@ -41,6 +38,8 @@ def bot_main():
     # Setting up some variables to be available in bot and ctx
     bot.make_command = helper.make_command
     bot.template_env = template_env
+    bot.user_groups = helper.user_groups
+    bot.channel_groups = helper.channel_groups
 
     @bot.before_invoke
     async def _(ctx):
@@ -48,9 +47,11 @@ def bot_main():
         ctx.guild_config = lambda: helper.guild_config(ctx)
         ctx.channel_config = lambda: helper.channel_config(ctx)
         ctx.env = template_env
+        ctx.user_groups = helper.user_groups()
+        ctx.channel_groups = helper.channel_groups()
 
     # Load the cogs from config file
-    for pkg, configs in config.items():
+    for pkg, configs in helper.cog_config.items():
         for cog_key, config in configs.items():
             module_name = f"{pkg}.{cog_key}"
             cls_name = ConfigHelper.cog_name(cog_key)

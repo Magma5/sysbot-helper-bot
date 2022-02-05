@@ -13,6 +13,7 @@ class CogSendError(commands.Cog):
                 await ctx.respond(f"Failed: {str(error)}")
             else:
                 await ctx.send(f"Failed: {str(error)}")
+            return
         elif isinstance(error, ApplicationCommandInvokeError):
             await ctx.send(f"⛔ {str(error.__cause__)}")
         raise error
