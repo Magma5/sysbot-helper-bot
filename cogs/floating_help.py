@@ -48,16 +48,14 @@ class FloatingHelp(commands.Cog):
             for channel_id in bot.channel_groups().get(channel_group):
                 info = ChannelInfo(config.channels[channel_group])
                 self.channels[channel_id] = info
-                # Lock until message history is completely retrieved
-                asyncio.run(info.lock.acquire())
 
     @commands.Cog.listener("on_ready")
     async def on_ready(self):
         # Find old messages from the channel
         for channel_id, info in self.channels.items():
-            history = await self.get_message_history(channel_id)
-            info.message_history.extend(history)
-            info.lock.release()
+            async with info.lock:
+                history = await self.get_message_history(channel_id)
+                info.message_history.extend(history)
         if self.config.auto_refresh:
             self.auto_refresh.start()
 
@@ -79,20 +77,20 @@ class FloatingHelp(commands.Cog):
         ctx = Context(self.bot, channel.guild, channel, self.bot.user)
         variables = self.bot.template_variables(ctx)
 
-        async with info.lock:
-            # Render template
-            template = self.bot.template_env.from_string(info.message_text)
-            content = template.render(variables).strip() + self.config.magic_space
-            queue = info.message_history
+        # Render template
+        template = self.bot.template_env.from_string(info.message_text)
+        content = template.render(variables).strip() + self.config.magic_space
+        queue = info.message_history
 
+        async with info.lock:
             # Try to clean old messages
             while queue and queue[-1].id != channel.last_message_id:
                 with suppress(HTTPException):
                     await queue.pop().delete()
 
             try:
-                if queue[0].content != content:
-                    await queue[0].edit(content=content)
+                if queue[-1].content != content:
+                    await queue[-1].edit(content=content)
                     return True
                 return False
             except IndexError:
