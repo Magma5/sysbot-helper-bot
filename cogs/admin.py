@@ -1,3 +1,4 @@
+from discord.errors import HTTPException
 from cogs import CogSendError
 from enum import Enum
 from discord.ext import commands
@@ -66,7 +67,7 @@ class Admin(CogSendError):
                 if announcement:
                     await announcement.do_announce(ctx, channel, "admin/change.md")
             except Exception as e:
-                await ctx.send(f"⛔ Error editing channel {channel.name} in {channel.guild.name}: {str(e)}")
+                await ctx.send(f"⛔ Can't edit channel #{channel.name} ({channel.guild.name}): {str(e)}")
 
     @property
     def votelock_remain(self):
@@ -148,7 +149,12 @@ class Admin(CogSendError):
             summary.append(f"#{channel.name} ({channel.guild.name})")
 
         await ctx.respond('\n'.join(summary))
-        await self.do_channel_action(channels, ChannelAction.LOCK)
+
+        for channel in channels:
+            try:
+                await self.do_channel_action(channel, ChannelAction.LOCK)
+            except HTTPException as e:
+                await ctx.send(f"⛔ Can't lock #{channel.name} ({channel.guild.name}): {str(e)}")
 
     @slash_command()
     @is_sudo()
@@ -160,4 +166,8 @@ class Admin(CogSendError):
             summary.append(f"#{channel.name} ({channel.guild.name})")
 
         await ctx.respond('\n'.join(summary))
-        await self.do_channel_action(channels, ChannelAction.UNLOCK)
+        for channel in channels:
+            try:
+                await self.do_channel_action(channel, ChannelAction.UNLOCK)
+            except HTTPException as e:
+                await ctx.send(f"⛔ Can't unlock #{channel.name} ({channel.guild.name}): {str(e)}")
