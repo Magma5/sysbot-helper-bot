@@ -110,15 +110,13 @@ class ConfigHelper:
 
         return config
 
-    def guild_config(self, ctx):
-        if ctx.guild:
-            return self.get_config('guild', ctx.guild.id)
-        return self.get_config('guild')
+    def guild_config(self, guild):
+        if guild:
+            return self.get_config('guild', guild.id)
 
-    def channel_config(self, ctx):
-        if ctx.channel:
-            return self.get_config('channel', ctx.channel.id)
-        return self.get_config('channel')
+    def channel_config(self, channel):
+        if channel:
+            return self.get_config('channel', channel.id)
 
     def channel_groups(self):
         return self.groups['channel']

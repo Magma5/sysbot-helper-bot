@@ -2,9 +2,10 @@ from dataclasses import dataclass, field
 from time import time
 from typing import Union
 from discord.errors import HTTPException
-from discord.ext import commands
+from discord.ext import commands, tasks
 from contextlib import suppress
-from collections import deque
+from collections import deque, namedtuple
+from random import gauss
 import asyncio
 
 
@@ -13,9 +14,14 @@ class ChannelInfo:
     message_text: str
     last_activity: float = field(default_factory=time)
     message_history: deque = field(default_factory=deque)
+
+    # Wait for channel inactive to refresh a message
     wait: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    def update(self):
+    # Lock the deque object for each channel
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+    def update_active(self):
         self.last_activity = time()
 
     def is_idle(self, activity_wait):
@@ -29,57 +35,99 @@ class FloatingHelp(commands.Cog):
         check_message_history: int = 50
         channel_activity_wait: int = 30
         magic_space: str = "⠀"
+        auto_refresh: bool = True
+        auto_refresh_interval: int = 30
 
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
 
         self.channels: dict[int, ChannelInfo] = {}
+        # iterate through all configured channel (groups) and initialize ChannelInfo
         for channel_group in config.channels:
-            for chan_id in bot.channel_groups().get(channel_group):
-                self.channels[chan_id] = ChannelInfo(config.channels[channel_group])
-
-        self.lock = asyncio.Lock()
+            for channel_id in bot.channel_groups().get(channel_group):
+                info = ChannelInfo(config.channels[channel_group])
+                self.channels[channel_id] = info
+                # Lock until message history is completely retrieved
+                asyncio.run(info.lock.acquire())
 
     @commands.Cog.listener("on_ready")
     async def on_ready(self):
-        # Find old messages
-        async with self.lock:
-            for chan_id in self.channels:
-                chan = self.bot.get_partial_messageable(chan_id)
-                async for message in chan.history(limit=self.config.check_message_history):
-                    if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
-                        self.channels[chan_id].message_history.append(message.id)
+        # Find old messages from the channel
+        for channel_id, info in self.channels.items():
+            history = await self.get_message_history(channel_id)
+            info.message_history.extend(history)
+            info.lock.release()
+        if self.config.auto_refresh:
+            self.auto_refresh.start()
+
+    async def get_message_history(self, channel_id):
+        channel = self.bot.get_channel(channel_id)
+        history = []
+        async for message in channel.history(limit=self.config.check_message_history):
+            if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
+                history.append(message)
+        return history
 
     async def refresh_message(self, channel_id):
-        chan = self.bot.get_channel(channel_id)
+        channel = self.bot.get_channel(channel_id)
+        info = self.channels[channel_id]
 
-        async with self.lock:
-            with suppress(HTTPException):
-                for msg_id in self.channels[channel_id].message_history:
-                    await chan.get_partial_message(msg_id).delete()
-                self.channels[channel_id].message_history.clear()
+        # Generate a fake context given the values we have.
+        # Can't have an actual context because Message object is missing
+        Context = namedtuple('Context', 'bot guild channel author')
+        ctx = Context(self.bot, channel.guild, channel, self.bot.user)
+        variables = self.bot.template_variables(ctx)
 
-            content = self.channels[channel_id].message_text.strip() + self.config.magic_space
-            message = await chan.send(content)
-            self.channels[channel_id].message_history.append(message.id)
+        async with info.lock:
+            # Render template
+            template = self.bot.template_env.from_string(info.message_text)
+            content = template.render(variables).strip() + self.config.magic_space
+            queue = info.message_history
+
+            # Try to clean old messages
+            while queue and queue[-1].id != channel.last_message_id:
+                with suppress(HTTPException):
+                    await queue.pop().delete()
+
+            try:
+                if queue[0].content != content:
+                    await queue[0].edit(content=content)
+                    return True
+                return False
+            except IndexError:
+                # Send new message, if history is empty
+                message = await channel.send(content)
+                queue.append(message)
+                return True
+
+    @tasks.loop()
+    async def auto_refresh(self):
+        for channel_id, info in self.channels.items():
+            if info.wait.locked():
+                continue
+            if await self.refresh_message(channel_id):
+                await asyncio.sleep(gauss(5, 1))
+        interval = self.config.auto_refresh_interval
+        await asyncio.sleep(interval, interval / 5)
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message):
-        chan = message.channel
+        channel = message.channel
 
-        if chan.id not in self.channels:
+        if channel.id not in self.channels:
             return
+
         if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
             return
 
-        info = self.channels[chan.id]
-        info.update()
+        info = self.channels[channel.id]
+        info.update_active()
 
         if info.wait.locked():
             return
 
         async with info.wait:
             while not info.is_idle(self.config.channel_activity_wait):
-                await asyncio.sleep(0.79)
-            await self.refresh_message(chan.id)
+                await asyncio.sleep(0.29)
+            await self.refresh_message(channel.id)

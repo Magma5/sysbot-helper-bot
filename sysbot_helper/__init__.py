@@ -1,5 +1,4 @@
 from os import environ
-from discord.ext import commands
 import logging
 import yaml
 import argparse
@@ -40,12 +39,15 @@ def bot_main():
     bot.template_env = template_env
     bot.user_groups = helper.user_groups
     bot.channel_groups = helper.channel_groups
+    bot.guild_config = helper.guild_config
+    bot.channel_config = helper.channel_config
+    bot.template_variables = helper.template_variables
 
     @bot.before_invoke
     async def _(ctx):
         ctx.template_variables = lambda: helper.template_variables(ctx)
-        ctx.guild_config = lambda: helper.guild_config(ctx)
-        ctx.channel_config = lambda: helper.channel_config(ctx)
+        ctx.guild_config = helper.guild_config(ctx.guild)
+        ctx.channel_config = helper.channel_config(ctx.channel)
         ctx.env = template_env
         ctx.user_groups = helper.user_groups()
         ctx.channel_groups = helper.channel_groups()
