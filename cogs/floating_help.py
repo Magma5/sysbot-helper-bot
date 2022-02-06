@@ -82,9 +82,14 @@ class FloatingHelp(commands.Cog):
         content = template.render(variables).strip() + self.config.magic_space
         queue = info.message_history
 
+        # Use API to retrieve history, so that it handles deleted messages as well
+        last_message_id = 0
+        async for message in channel.history(limit=1):
+            last_message_id = message.id
+
         async with info.lock:
             # Try to clean old messages
-            while queue and queue[-1].id != channel.last_message_id:
+            while queue and queue[-1].id != last_message_id:
                 with suppress(HTTPException):
                     await queue.pop().delete()
 
@@ -93,7 +98,7 @@ class FloatingHelp(commands.Cog):
                     await queue[-1].edit(content=content)
                     return True
                 return False
-            except IndexError:
+            except (IndexError, HTTPException):
                 # Send new message, if history is empty
                 message = await channel.send(content)
                 queue.append(message)
