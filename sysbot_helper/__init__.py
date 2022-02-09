@@ -1,5 +1,6 @@
 from os import environ
 import logging
+from collections.abc import Iterable
 import yaml
 import argparse
 from jinja2 import Environment, FileSystemLoader
@@ -68,7 +69,12 @@ def bot_main():
             if hasattr(cls, 'Config'):
                 log.info('Load cog with config: %s', cls_name)
                 cls_config = getattr(cls, 'Config')
-                instance = cls(bot, cls_config(**config))
+                if isinstance(config, dict):
+                    instance = cls(bot, cls_config(**config))
+                elif isinstance(config, list):
+                    instance = cls(bot, cls_config(*config))
+                else:
+                    instance = cls(bot, cls_config(config))
             else:
                 log.info('Load cog: %s', cls_name)
                 instance = cls(bot)
