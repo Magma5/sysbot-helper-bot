@@ -1,4 +1,5 @@
 from discord import File
+from discord.commands.core import slash_command
 from discord.ext import commands
 from dataclasses import dataclass
 from difflib import get_close_matches
@@ -23,23 +24,34 @@ class Pa8(commands.Cog):
         name = splitext(basename(fn))[0]
         return name.replace("★", "★ (Shiny)")
 
-    @commands.command(aliases=('pb8', 'pk8', 'pkm'))
-    async def pa8(self, ctx, *, text: str = None):
-        pa8_files = set(*chain(glob(ptn) for ptn in self.config.load_files))
-        name_mappings = {self.pb8_key(fn).lower(): fn for fn in pa8_files}
+    def get_pkm(self, ctx, query, pkm_ext='.pa8'):
+        pkm_files = set(chain(*(glob(ptn) for ptn in self.config.load_files)))
 
-        if not text:
-            return await ctx.send('Please request a pokemon name!')
+        name_mappings = {}
+        for fn in pkm_files:
+            name, ext = splitext(basename(fn))
+            if ext == pkm_ext:
+                name = name.replace("★", "★ (Shiny)")
+                name_mappings[name] = fn
 
-        text = text.lower()
+        if not query:
+            return dict(content='You can search by Pokemon name or ID in three digits!')
+        if not name_mappings:
+            return dict(content=f'No {pkm_ext} files loaded!')
+
+        query = query.lower()
+        matches = []
 
         # exact match
-        for name in name_mappings:
-            if name.startswith(text):
-                return await ctx.send('Here is the .pb8 file:', file=File(name_mappings[name]))
+        if len(query) >= 3:
+            for name in name_mappings:
+                if name.startswith(query):
+                    matches.append(name)
 
         # Approximate match
-        matches = get_close_matches(text, name_mappings.keys(), n=self.config.search_results_limit, cutoff=self.config.search_score_cutoff)
+        if not matches:
+            matches = get_close_matches(query, name_mappings.keys(), n=self.config.search_results_limit, cutoff=self.config.search_score_cutoff)
+
         files = []
         content = []
         for i, match in enumerate(matches):
@@ -51,6 +63,24 @@ class Pa8(commands.Cog):
                 content.append(f'{name}')
 
         if files:
-            await ctx.send(content='\n'.join(content), files=files)
-        else:
-            await ctx.send('.pa8 file not found!')
+            return dict(content='\n'.join(content), files=files)
+        return dict(content=f'{pkm_ext} file not found!')
+
+    @commands.command(name='pa8', aliases=('pb8', 'pk8'))
+    async def pkm_command(self, ctx, *, query: str = None):
+        await ctx.send(**self.get_pkm(ctx, query, f'.{ctx.invoked_with}'))
+
+    @slash_command()
+    async def pa8(self, ctx, query: str):
+        """Use this slash command if you want some pa8 files!"""
+        await ctx.respond(**self.get_pkm(ctx, query, '.pa8'))
+
+    @slash_command()
+    async def pb8(self, ctx, query: str):
+        """Use this slash command if you want some pb8 files!"""
+        await ctx.respond(**self.get_pkm(ctx, query, '.pb8'))
+
+    @slash_command()
+    async def pk8(self, ctx, query: str):
+        """Use this slash command if you want some pk8 files!"""
+        await ctx.respond(**self.get_pkm(ctx, query, '.pk8'))
