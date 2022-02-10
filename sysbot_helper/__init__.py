@@ -1,6 +1,5 @@
 from os import environ
 import logging
-from collections.abc import Iterable
 import yaml
 import argparse
 from jinja2 import Environment, FileSystemLoader
@@ -27,6 +26,15 @@ def bot_main():
     config_token = config.pop('token', None)
     token = environ.get('TOKEN') or config_token
 
+    # Show motd
+    config_motd = config.pop('motd', 'motd.txt')
+    motd = None
+    try:
+        with open(config_motd, 'r') as f:
+            motd = f.read().strip()
+    except FileNotFoundError:
+        log.info(f'{config_motd} not found, will not print MOTD.')
+
     # Initialize config helper
     helper = ConfigHelper(config)
     bot = helper.bot
@@ -52,6 +60,11 @@ def bot_main():
         ctx.env = template_env
         ctx.user_groups = helper.user_groups()
         ctx.channel_groups = helper.channel_groups()
+
+    @bot.event
+    async def on_ready():
+        if motd:
+            print(motd)
 
     # Load the cogs from config file
     for pkg, configs in helper.cog_config.items():
