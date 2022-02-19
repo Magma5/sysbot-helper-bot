@@ -29,11 +29,12 @@ def bot_main():
     # Show motd
     config_motd = config.pop('motd', 'motd.txt')
     motd = None
-    try:
-        with open(config_motd, 'r') as f:
-            motd = f.read().strip()
-    except FileNotFoundError:
-        log.info(f'{config_motd} not found, will not print MOTD.')
+    if config_motd:
+        try:
+            with open(config_motd, 'r') as f:
+                motd = f.read().strip()
+        except FileNotFoundError:
+            log.info(f'{config_motd} not found, will not print MOTD.')
 
     # Initialize config helper
     helper = ConfigHelper(config)
