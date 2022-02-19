@@ -1,6 +1,6 @@
 from .parser import DiscordTextParser
 from discord.ext import commands
-from discord.ext.commands.errors import CheckFailure
+from discord.ext.commands.errors import CheckFailure, UserInputError
 from discord.commands.errors import ApplicationCommandInvokeError
 
 __all__ = ['DiscordTextParser']
@@ -16,4 +16,6 @@ class CogSendError(commands.Cog):
             return
         elif isinstance(error, ApplicationCommandInvokeError):
             await ctx.send(f"⛔ {str(error.__cause__)}")
+        elif isinstance(error, UserInputError):
+            await ctx.send(f"⚠️ {str(error)}")
         raise error
