@@ -45,7 +45,7 @@ class FloatingHelp(commands.Cog):
         self.channels: dict[int, ChannelInfo] = {}
         # iterate through all configured channel (groups) and initialize ChannelInfo
         for channel_group in config.channels:
-            for channel_id in bot.channel_groups().get(channel_group):
+            for channel_id in bot.channel_groups.get_members(channel_group):
                 info = ChannelInfo(config.channels[channel_group])
                 self.channels[channel_id] = info
 

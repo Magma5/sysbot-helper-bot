@@ -1,70 +1,9 @@
 import logging
+from importlib import import_module
 
-from discord.ext.commands import Bot
+from .groups import Groups
 
 log = logging.getLogger(__name__)
-
-
-class Groups:
-    def __init__(self, config):
-        self.groups = {}
-        self.groups['all'] = set()
-        self.add_group(config)
-
-    def add_group(self, config):
-        all_members, groups = self.flatten_groups(config)
-        self.groups['all'].update(all_members)
-        self.groups.update(groups)
-
-    def flatten_groups(self, config):
-        groups = {}
-        all_members = set()
-
-        if isinstance(config, int):
-            all_members.add(config)
-
-        elif isinstance(config, list):
-            for v in config:
-                members, subgroups = self.flatten_groups(v)
-                all_members.update(members)
-                groups.update(subgroups)
-
-        elif isinstance(config, dict):
-            for k, v in config.items():
-                members, subgroups = self.flatten_groups(v)
-                all_members.update(members)
-                groups[k] = members
-                groups.update(subgroups)
-
-        return all_members, groups
-
-    def in_group(self, member_id, name):
-        if name not in self.groups:
-            return False
-        return member_id in self.groups[name]
-
-    def in_group_any(self, member_id, groups):
-        return any(self.in_group(member_id, group) for group in groups)
-
-    def in_group_all(self, member_id, groups):
-        return all(self.in_group(member_id, group) for group in groups)
-
-    def get(self, name):
-        if isinstance(name, int):
-            return set([name])
-        return self.groups.get(name, set())
-
-    def get_all(self, *names):
-        result = set()
-        for name in names:
-            result.update(self.get(name))
-        return result
-
-    def __repr__(self) -> str:
-        return self.groups.__repr__()
-
-    def __str__(self) -> str:
-        return self.groups.__str__()
 
 
 class ConfigHelper:
@@ -72,13 +11,13 @@ class ConfigHelper:
     def cog_name(cls, key):
         return ''.join(map(str.capitalize, key.split('_')))
 
-    config_group_mappings = {
-        'sudo': ('user', 'sudo'),
-        'sysbot_channels': ('channel', 'sysbots')
-    }
+    CONFIG_GROUP_MAPPINGS = [
+        ('sudo', 'user', 'sudo'),
+        ('sysbot_channels', 'channel', 'sysbots')
+    ]
 
-    def __init__(self, config):
-        self.bot = Bot(**config.pop('bot', {}))
+    def __init__(self, bot, config):
+        self.bot = bot
         self.configs = {
             'guild': config.pop('guilds', {}),
             'channel': config.pop('channels', {}),
@@ -90,11 +29,13 @@ class ConfigHelper:
             'user': Groups(config.pop('user_groups', {})),
         }
 
-        for k, v in self.config_group_mappings.items():
-            if k in config:
-                group_type, group_name = v
-                self.groups[group_type].add_group({group_name: config.pop(k)})
+        # Map some config from root to user/channel groups
+        for name, group_type, map_to in self.CONFIG_GROUP_MAPPINGS:
+            self.groups[group_type].add_group({map_to: config.pop(name, {})})
 
+        self.motd = config.pop('motd', 'motd.txt')
+
+        # The remaining configs are used to load cogs
         self.cog_config = config
         self.cog_list = set()
 
@@ -110,69 +51,55 @@ class ConfigHelper:
 
         return config
 
-    def guild_config(self, guild):
-        if guild:
-            return self.get_config('guild', guild.id)
-
-    def channel_config(self, channel):
-        if channel:
-            return self.get_config('channel', channel.id)
-
-    def channel_groups(self):
-        return self.groups['channel']
-
-    def user_groups(self):
-        return self.groups['user']
-
     def get_cog(self, key):
         return self.bot.get_cog(self.cog_name(key))
 
-    def register_cog(self, cog_name):
-        self.cog_list.add(cog_name)
+    def get_motd(self):
+        if not self.motd:
+            return
+        try:
+            with open(self.motd, 'r') as f:
+                motd = f.read().strip()
+                return motd
+        except FileNotFoundError:
+            log.info(f'{self.motd} not found, will not print MOTD.')
 
     def template_variables_base(self, ctx):
-        return {
-            'name': ctx.author.name,
-            'mention': ctx.author.mention,
-            'ctx': ctx
-        }
+        result = {'ctx': ctx}
 
-    def template_variables(self, ctx):
-        """Search through all registered cogs and load variables"""
-        variables = self.template_variables_base(ctx)
-        for cog_name in self.cog_list:
-            cog = self.get_cog(cog_name)
-            if hasattr(cog, 'template_variables'):
-                fn = getattr(cog, 'template_variables')
-                variables.update(fn(ctx))
-        return variables
+        if hasattr(ctx, 'author'):
+            result.update(
+                name=ctx.author.name,
+                mention=ctx.author.mention)
 
-    def make_command(self, **command_options):
-        def wrap_command(func):
-            name = command_options.pop('name')
-            aliases = command_options.pop('aliases', [])
+        return result
 
-            log.info('Register command name=%s', name)
+    def register_all_cogs(self):
+        # Load the cogs from config file
+        for pkg, configs in self.cog_config.items():
+            for cog_key, args in configs.items():
+                module_name = f"{pkg}.{cog_key}"
+                cls_name = self.cog_name(cog_key)
 
-            # Check slash command and text command
-            if name.startswith('/') or name.startswith('_'):
-                command_deco = self.bot.slash_command
-                name = name[1:]
-            else:
-                command_deco = self.bot.command
+                module = import_module(module_name)
+                if not hasattr(module, cls_name):
+                    log.warn('Unable to load cog %s from package %s!', cls_name, module_name)
+                    continue
+                cls = getattr(module, cls_name)
 
-            # Register aliases too
-            name_aliases = name.split(',')
-            name, aliases = name_aliases[0], tuple(aliases + name_aliases[1:])
-
-            # Register the actual command
-            @command_deco(name=name, aliases=aliases, **command_options)
-            async def _(ctx):
-                respond_options = func(ctx)
-                if not respond_options:
-                    return
-                if hasattr(ctx, 'respond'):
-                    await ctx.respond(**respond_options)
+                # Create a cog instance (with config) and add to the bot
+                if hasattr(cls, 'Config'):
+                    log.info('Load cog with config: %s', cls_name)
+                    cls_config = getattr(cls, 'Config')
+                    if isinstance(args, dict):
+                        instance = cls(self.bot, cls_config(**args))
+                    elif isinstance(args, list):
+                        instance = cls(self.bot, cls_config(*args))
+                    else:
+                        instance = cls(self.bot, cls_config(args))
                 else:
-                    await ctx.send(**respond_options)
-        return wrap_command
+                    log.info('Load cog: %s', cls_name)
+                    instance = cls(self.bot)
+
+                self.bot.add_cog(instance)
+                self.cog_list.add(cls_name)
