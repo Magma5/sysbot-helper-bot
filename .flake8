@@ -1,0 +1,5 @@
+[flake8]
+# E501: too long  F722,F821: type annotation
+ignore = E501,F722,F821
+exclude = .git,__pycache__,venv,env
+max-complexity = 30

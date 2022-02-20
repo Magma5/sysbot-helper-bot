@@ -1,0 +1,6 @@
+config.yml
+config_*.yml
+*.txt
+stats.yml
+templates/*.md
+.vscode
