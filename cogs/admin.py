@@ -29,7 +29,7 @@ class Admin(CogSendError):
         self.votelock_list = {}
 
     def bot_channels(self, ctx):
-        return [ctx.bot.get_channel(ch) for ch in ctx.channel_groups.get('sysbots')]
+        return [ctx.bot.get_channel(ch) for ch in ctx.channel_groups.get_members('sysbots')]
 
     async def do_channel_action(self, channels, action: ChannelAction):
         if not isinstance(channels, Iterable):

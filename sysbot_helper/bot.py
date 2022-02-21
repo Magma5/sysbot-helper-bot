@@ -1,5 +1,5 @@
 import logging
-from discord import Message
+from discord import Message, Interaction, ApplicationContext
 from discord.ext.commands import Bot as Base, Context
 from jinja2 import Environment, FileSystemLoader
 
@@ -81,8 +81,7 @@ class Bot(Base):
         if motd:
             print(motd)
 
-    async def get_context(self, message: Message, *, cls=Context):
-        ctx = await super().get_context(message, cls=cls)
+    def context_attach_attributes(self, ctx):
         ctx.template_variables = lambda: self.template_variables(ctx)
         ctx.guild_config = lambda: self.guild_config(ctx.guild)
         ctx.channel_config = lambda: self.channel_config(ctx.channel)
@@ -91,4 +90,13 @@ class Bot(Base):
         ctx.user_groups = self.user_groups
         ctx.channel_groups = self.channel_groups
         ctx.guild_groups = self.guild_groups
+
+    async def get_context(self, message: Message, *, cls=Context):
+        ctx = await super().get_context(message, cls=cls)
+        self.context_attach_attributes(ctx)
+        return ctx
+
+    async def get_application_context(self, interaction: Interaction, cls=ApplicationContext):
+        ctx = await super().get_application_context(interaction, cls=cls)
+        self.context_attach_attributes(ctx)
         return ctx
