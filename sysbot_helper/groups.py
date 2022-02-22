@@ -35,7 +35,7 @@ class Groups:
                 saved_groups = json.load(f)
                 for name, members in saved_groups.items():
                     self.add_member_save(name, *members)
-            self.save_file = fn
+        self.save_file = fn
 
     def write_save_file(self):
         if getattr(self, 'save_file', None):
