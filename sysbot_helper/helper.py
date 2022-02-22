@@ -24,14 +24,17 @@ class ConfigHelper:
             'user': config.pop('users', {})
         }
         self.groups = {
-            'guild': Groups(config.pop('guild_groups', {})),
-            'channel': Groups(config.pop('channel_groups', {})),
-            'user': Groups(config.pop('user_groups', {})),
+            'guild': Groups(config.pop('guild_groups', {}),
+                            config.pop('guild_groups_save', None)),
+            'channel': Groups(config.pop('channel_groups', {}),
+                              config.pop('channel_groups_save', None)),
+            'user': Groups(config.pop('user_groups', {}),
+                           config.pop('user_groups_save', {})),
         }
 
         # Map some config from root to user/channel groups
         for name, group_type, map_to in self.CONFIG_GROUP_MAPPINGS:
-            self.groups[group_type].add_group({map_to: config.pop(name, {})})
+            self.groups[group_type].update({map_to: config.pop(name, {})})
 
         self.motd = config.pop('motd', 'motd.txt')
 

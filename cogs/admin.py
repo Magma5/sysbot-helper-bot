@@ -171,3 +171,31 @@ class Admin(CogSendError):
                 await self.do_channel_action(channel, ChannelAction.UNLOCK)
             except HTTPException as e:
                 await ctx.send(f"⛔ Can't unlock #{channel.name} ({channel.guild.name}): {str(e)}")
+
+    @commands.group(invoke_without_command=True)
+    @commands.has_permissions(administrator=True)
+    async def add(self, ctx, channel: TextChannel = None):
+        chan = channel or ctx.channel
+        if ctx.channel_groups.in_group(chan.id, 'sysbots'):
+            return await ctx.send(f'{chan.mention} is already added to bot channels list!')
+        ctx.channel_groups.add_member_save('sysbots', chan.id)
+        await ctx.send(f'{chan.mention} has been added. You will now get announcements in this channel.')
+
+    @add.command()
+    @commands.has_permissions(administrator=True)
+    async def remove(self, ctx, channel: TextChannel = None):
+        chan = channel or ctx.channel
+        if not ctx.channel_groups.in_group(chan.id, 'sysbots'):
+            return await ctx.send(f'{chan.mention} is not added to the bot channels!')
+        ctx.channel_groups.remove_member_save('sysbots', chan.id)
+        await ctx.send(f'{chan.mention} has been removed. You will no longer get announcements in this channel.')
+
+    @add.command(aliases=('list',))
+    @is_sudo()
+    async def channels(self, ctx):
+        summary = []
+        channels = self.bot_channels(ctx)
+        for channel in channels:
+            summary.append(f"{channel.mention} ({channel.guild.name})")
+
+        await ctx.send('\n'.join(summary))
