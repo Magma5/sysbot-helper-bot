@@ -2,7 +2,7 @@ from discord import slash_command
 
 from . import CogSendError
 from .checks import is_sudo
-from .parser import DiscordTextParser
+from .utils import DiscordTextParser
 
 
 class Announcement(CogSendError):
