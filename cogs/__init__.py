@@ -1,9 +1,6 @@
-from .parser import DiscordTextParser
 from discord.ext import commands
 from discord.ext.commands.errors import CheckFailure, UserInputError
 from discord.commands.errors import ApplicationCommandInvokeError
-
-__all__ = ['DiscordTextParser']
 
 
 class CogSendError(commands.Cog):

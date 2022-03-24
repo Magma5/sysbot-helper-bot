@@ -8,7 +8,7 @@ from io import BytesIO
 
 from dataclasses import dataclass
 from discord.message import Message
-from .parser import DiscordTextParser
+from .utils import DiscordTextParser
 
 
 class Dm(commands.Cog):

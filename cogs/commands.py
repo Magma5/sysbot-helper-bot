@@ -6,7 +6,7 @@ from itertools import chain
 from os.path import splitext, basename, join
 from random import choice
 
-from .parser import DiscordTextParser
+from .utils import DiscordTextParser
 
 
 class Commands(commands.Cog):
