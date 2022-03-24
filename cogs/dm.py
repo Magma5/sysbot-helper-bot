@@ -46,7 +46,7 @@ class Dm(commands.Cog):
     async def on_message_reply(self, message: Message):
         if message.channel.id not in self.config.channels:
             return
-        if message.author == self.bot.user:
+        if message.author.bot:
             return
 
         # Determine the user ID to send to
