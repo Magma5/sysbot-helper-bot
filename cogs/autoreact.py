@@ -4,10 +4,9 @@ from discord.ext.commands import Bot
 from discord.ext import commands
 
 from dataclasses import dataclass
-from discord.ext.commands.context import Context
 from discord.message import Message
 
-from .utils import wait_tasks_any, wait_tasks_all
+from .utils import wait_tasks_any, wait_tasks_all, DiscordAction
 
 
 @dataclass
@@ -114,50 +113,6 @@ class ReactMatcher:
         return True
 
 
-class ReactAction:
-    def __init__(self, ctx: Context, matcher: ReactMatcher):
-        self.ctx = ctx
-        self.bot = ctx.bot
-        self.template_env = self.bot.template_env
-        self.variables = self.bot.template_variables(ctx)
-        self.variables['groups'] = matcher.match_groups
-        self.sent_messages = []
-
-    async def react(self, emoji):
-        if isinstance(emoji, int):
-            emoji = self.bot.get_emoji(emoji)
-        await self.ctx.message.add_reaction(emoji)
-
-    async def reply(self, text):
-        msg = await self.ctx.reply(
-            self.template_env.from_string(text).render(self.variables))
-        self.sent_messages.append(msg)
-
-    async def send(self, text):
-        msg = await self.ctx.send(
-            self.template_env.from_string(text).render(self.variables))
-        self.sent_messages.append(msg)
-
-    async def delete(self, yes=True):
-        if yes:
-            await self.ctx.message.delete()
-
-    async def delete_after(self, delay):
-        await asyncio.sleep(delay)
-        await self.delete()
-
-    async def delete_replies_after(self, delay):
-        await asyncio.sleep(delay)
-        while self.sent_messages:
-            msg = self.sent_messages.pop()
-            await msg.delete()
-
-    async def delay(self, delay):
-        await asyncio.sleep(delay)
-
-    async def suppress_embeds(self, yes):
-        if yes:
-            await self.ctx.message.edit(suppress=True)
 
 
 @dataclass
@@ -237,7 +192,7 @@ class ReactConfig:
             return matcher
 
     async def do_actions(self, ctx, matcher):
-        react_action = ReactAction(ctx, matcher)
+        react_action = DiscordAction(ctx, match_groups=matcher.match_groups)
         for actions in self.actions:
             coro_list = []
             for name, args in actions.items():
