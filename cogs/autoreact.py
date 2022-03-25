@@ -97,6 +97,12 @@ class ReactMatcher:
     async def authors(self, message: Message, author_id: int):
         return await self.author(message, author_id)
 
+    async def category(self, message: Message, category_id: int):
+        return message.channel.category_id == category_id
+
+    async def categories(self, message: Message, category_id: int):
+        return await self.category(category_id)
+
     async def mentions(self, message: Message, user_id: int):
         return user_id in message.raw_mentions
 
@@ -105,6 +111,9 @@ class ReactMatcher:
 
     async def mentions_channel(self, message: Message, channel_id: int):
         return channel_id in message.raw_channel_mentions
+
+    async def mentions_self(self, message: Message):
+        return await self.mentions(message, self._bot.user.id)
 
     async def any(self, _):
         return True
