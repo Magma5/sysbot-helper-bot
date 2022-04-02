@@ -1,6 +1,9 @@
 config.yml
 config_*.yml
+*.json
 *.txt
+/test*.py
 stats.yml
 templates/*.md
 .vscode
+public/
