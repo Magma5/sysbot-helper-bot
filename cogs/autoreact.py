@@ -6,7 +6,7 @@ from discord.ext import commands
 from dataclasses import dataclass
 from discord.message import Message
 
-from .utils import wait_tasks_any, wait_tasks_all, DiscordAction
+from .utils import wait_tasks_any, wait_tasks_all, DiscordAction, ensure_list
 
 
 @dataclass
@@ -122,8 +122,6 @@ class ReactMatcher:
         return True
 
 
-
-
 @dataclass
 class ReactConfig:
     def __init__(self, **kwargs):
@@ -144,7 +142,7 @@ class ReactConfig:
                 self.rules[k] = kwargs.pop(k)
 
         # The remaining keys are all actions
-        self.actions = self._ensure_list(kwargs.pop('actions', dict()))
+        self.actions = ensure_list(kwargs.pop('actions', dict()))
         self.actions.insert(0, dict(**kwargs))
 
     async def match_helper_bool(self, fn, message, expected):
@@ -157,7 +155,7 @@ class ReactConfig:
         async def run_match_match(message, rules):
             tasks = []
             for name, args in rules.items():
-                args = self._ensure_list(args)
+                args = ensure_list(args)
                 coro = self.match_item(matcher, name, message, *args)
                 tasks.append(asyncio.create_task(coro))
             return await wait_tasks_all(tasks)
@@ -190,11 +188,6 @@ class ReactConfig:
             tasks.append(asyncio.create_task(coro))
         return await wait_tasks_any(tasks)
 
-    def _ensure_list(self, arg):
-        if isinstance(arg, list):
-            return arg
-        return [arg]
-
     async def check_match(self, bot, message: Message):
         matcher = ReactMatcher(bot)
         if await self.match_item(matcher, 'match', message, self.rules):
@@ -205,7 +198,7 @@ class ReactConfig:
         for actions in self.actions:
             coro_list = []
             for name, args in actions.items():
-                for action_arg in self._ensure_list(args):
+                for action_arg in ensure_list(args):
                     fn = getattr(react_action, name)
                     coro_list.append(fn(action_arg))
 
