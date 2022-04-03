@@ -37,8 +37,9 @@ class FloatingHelp(commands.Cog):
         magic_space: str = "⠀"
         auto_refresh: bool = True
         auto_refresh_interval: int = 30
+        skip_locked_channels: bool = False
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 
@@ -62,6 +63,8 @@ class FloatingHelp(commands.Cog):
     async def get_message_history(self, channel_id):
         channel = self.bot.get_channel(channel_id)
         history = []
+
+        # history() returns message from newest to oldest
         async for message in channel.history(limit=self.config.check_message_history):
             if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
                 history.append(message)
@@ -88,6 +91,13 @@ class FloatingHelp(commands.Cog):
             last_message_id = message.id
 
         async with info.lock:
+            if self.should_skip(channel):
+                # Delete every single old messages
+                for msg in queue:
+                    with suppress(HTTPException):
+                        await msg.delete()
+                return queue.clear()
+
             # Try to clean old messages
             while queue and queue[-1].id != last_message_id:
                 with suppress(HTTPException):
@@ -103,6 +113,12 @@ class FloatingHelp(commands.Cog):
                 message = await channel.send(content)
                 queue.append(message)
                 return True
+
+    def should_skip(self, channel):
+        perms = channel.permissions_for(channel.guild.default_role)
+        if self.config.skip_locked_channels and perms.send_messages is False:
+            return True
+        return False
 
     @tasks.loop()
     async def auto_refresh(self):
