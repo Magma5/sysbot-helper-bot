@@ -1,7 +1,7 @@
 from discord import slash_command, File
 from discord.ext import commands
 from discord.commands.options import Option
-from discord.commands.errors import ApplicationCommandInvokeError
+from discord.errors import ApplicationCommandInvokeError
 
 from dataclasses import dataclass
 import asyncio

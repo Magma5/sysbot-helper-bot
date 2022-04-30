@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "sysbot-helper-bot"
+version = "0.1.0"
+description = ""
+authors = ["Magma5 <mosciskistan@outlook.com>"]
+packages = [
+    { include = "sysbot_helper", from = "src" },
+    { include = "cogs", from = "src" },
+    { include = "cogs_extra", from = "src" },
+]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+Jinja2 = "^3.1.1"
+Pillow = "^9.1.0"
+PyYAML = "^6.0"
+mss = "^6.1.0"
+more-itertools = "^8.12.0"
+py-cord = "2.0.0b7"
+pydantic = "^1.9.0"
+aiogram = "^2.20"
+
+[tool.poetry.dev-dependencies]
+pytype = "^2022.4.22"
+
+[tool.poetry.scripts]
+bot = "sysbot_helper:bot_main"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,5 +1,6 @@
 import logging
-from discord import Message, Interaction, ApplicationContext
+from discord import Intents, Message, Interaction, ApplicationContext
+import discord
 from discord.ext.commands import Bot as Base, Context
 from jinja2 import Environment, FileSystemLoader
 
@@ -11,7 +12,14 @@ log = logging.getLogger(__name__)
 class Bot(Base):
     def __init__(self, config):
         bot_args = config.pop('bot', {})
-        super().__init__(**bot_args)
+
+        # Set intents from config
+        intents_config = bot_args.pop('intents')
+        intents = Intents.default()
+        for k, v in intents_config.items():
+            setattr(intents, k, v)
+
+        super().__init__(**bot_args, intents=intents)
 
         self.helper = ConfigHelper(self, config)
         self.template_env = Environment(

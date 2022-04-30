@@ -1,6 +1,6 @@
 from discord.ext import commands
 from discord.ext.commands.errors import CheckFailure, UserInputError
-from discord.commands.errors import ApplicationCommandInvokeError
+from discord.errors import ApplicationCommandInvokeError
 
 
 class CogSendError(commands.Cog):
