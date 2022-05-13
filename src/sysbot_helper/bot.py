@@ -1,6 +1,6 @@
 import logging
+
 from discord import Intents, Message, Interaction, ApplicationContext
-import discord
 from discord.ext.commands import Bot as Base, Context
 from jinja2 import Environment, FileSystemLoader
 
@@ -24,6 +24,7 @@ class Bot(Base):
         self.helper = ConfigHelper(self, config)
         self.template_env = Environment(
             loader=FileSystemLoader("templates"))
+        self.Session = None
 
     def guild_config(self, guild):
         return self.helper.get_config('guild', guild.id)
@@ -45,6 +46,15 @@ class Bot(Base):
     @property
     def user_groups(self):
         return self.helper.groups['user']
+
+    def set_database(self, database_url: str):
+        """Initialize database session if needed. """
+        if database_url is None:
+            return
+        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+        from sqlalchemy.orm import sessionmaker
+        engine = create_async_engine(database_url)
+        self.Session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
     def template_variables(self, ctx):
         """Search through all registered cogs and load variables"""
@@ -82,6 +92,7 @@ class Bot(Base):
                         await ctx.respond(**response)
                     else:
                         await ctx.send(**response)
+
         return wrap_command
 
     async def on_ready(self):
