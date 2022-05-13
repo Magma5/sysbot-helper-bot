@@ -6,7 +6,6 @@ authors = ["Magma5 <mosciskistan@outlook.com>"]
 packages = [
     { include = "sysbot_helper", from = "src" },
     { include = "cogs", from = "src" },
-    { include = "cogs_extra", from = "src" },
 ]
 
 [tool.poetry.dependencies]
