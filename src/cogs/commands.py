@@ -1,19 +1,19 @@
-from typing import List, Dict
-from discord.ext import commands
-from dataclasses import dataclass, field
 from glob import glob
 from itertools import chain
 from os.path import splitext, basename, join
 from random import choice
 
+from discord.ext import commands
+from pydantic import BaseModel
+
 from .utils import DiscordTextParser
 
 
 class Commands(commands.Cog):
-    @dataclass
-    class Config:
-        text: Dict = field(default_factory=dict)
-        load_files: List[str] = field(default_factory=list)
+    class Config(BaseModel):
+        text: dict[str, str] = {}
+        load_files: list[str] = []
+        root_dir: str = 'templates'
 
     def __init__(self, bot, config):
         self.bot = bot
@@ -63,7 +63,7 @@ class Commands(commands.Cog):
 
     def load_commands(self):
         files = set(chain(
-            *(glob(file, root_dir='templates') for file in self.config.load_files)))
+            *(glob(file, root_dir=self.config.root_dir) for file in self.config.load_files)))
 
         for fn in files:
             name, _ = splitext(basename(fn))

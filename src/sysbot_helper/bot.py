@@ -1,10 +1,11 @@
 import logging
 
 from discord import Intents, Message, Interaction, ApplicationContext
-from discord.ext.commands import Bot as Base, Context
+from discord.ext.commands import Bot as Base, Context, Command
 from jinja2 import Environment, FileSystemLoader
 
 from .helper import ConfigHelper
+from .slash import MySlashCommand
 
 log = logging.getLogger(__name__)
 
@@ -70,28 +71,25 @@ class Bot(Base):
             name = command_options.pop('name')
             aliases = command_options.pop('aliases', [])
 
-            log.info('Register command name=%s', name)
-
-            # Check slash command and text command
-            if name[:1] in '/_':
-                command_deco = self.slash_command
-                name = name[1:]
-            else:
-                command_deco = self.command
-
             # Register aliases too
-            name_aliases = name.split(',')
-            name, aliases = name_aliases[0], tuple(aliases + name_aliases[1:])
+            name_aliases = name.split(',') + aliases
 
-            # Register the actual command
-            @command_deco(name=name, aliases=aliases, **command_options)
-            async def _(ctx):
-                response = func(ctx)
-                if response:
-                    if hasattr(ctx, 'respond'):
-                        await ctx.respond(**response)
-                    else:
-                        await ctx.send(**response)
+            log.info('Register command name=%s', name_aliases)
+
+            for name in name_aliases:
+                name = name.strip()
+                if len(name) <= 0:
+                    continue
+                elif name[:1] in '/_':
+                    async def callback(ctx):
+                        await ctx.respond(**func(ctx))
+                    cmd = MySlashCommand(callback, name=name[1:], aliases=aliases, **command_options)
+                    self.add_application_command(cmd)
+                else:
+                    async def callback(ctx):
+                        await ctx.send(**func(ctx))
+                    cmd = Command(callback, name=name, aliases=aliases, **command_options)
+                    self.add_command(cmd)
 
         return wrap_command
 

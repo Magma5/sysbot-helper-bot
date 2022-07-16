@@ -1,12 +1,14 @@
+import asyncio
+from collections import deque, namedtuple
+from contextlib import suppress
 from dataclasses import dataclass, field
+from random import gauss
 from time import time
 from typing import Union
+
 from discord.errors import HTTPException
 from discord.ext import commands, tasks
-from contextlib import suppress
-from collections import deque, namedtuple
-from random import gauss
-import asyncio
+from pydantic import BaseModel
 
 
 @dataclass
@@ -29,8 +31,7 @@ class ChannelInfo:
 
 
 class FloatingHelp(commands.Cog):
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         channels: dict[Union[int, str], str]
         check_message_history: int = 50
         channel_activity_wait: int = 30

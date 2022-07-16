@@ -1,12 +1,14 @@
-from discord.errors import HTTPException
-from cogs import CogSendError
-from enum import Enum
-from discord.ext import commands
-from time import time
-from collections.abc import Iterable
-from discord import slash_command, TextChannel
-from dataclasses import dataclass
 import asyncio
+from collections.abc import Iterable
+from enum import Enum
+from time import time
+
+from discord import slash_command, TextChannel
+from discord.errors import HTTPException
+from discord.ext import commands
+from pydantic import BaseModel
+
+from . import CogSendError
 from .checks import is_sudo
 
 
@@ -16,9 +18,7 @@ class ChannelAction(Enum):
 
 
 class Admin(CogSendError):
-
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         messages: dict[str, str]
         vote_valid_seconds: int = 300
         vote_count_required: int = 3

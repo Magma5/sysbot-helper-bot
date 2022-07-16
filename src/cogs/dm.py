@@ -1,21 +1,17 @@
 import re
-from discord.abc import User
-from discord.enums import ChannelType
-from discord.errors import HTTPException
-from discord.ext import commands
-from discord import File
 from io import BytesIO
 
-from dataclasses import dataclass
-from discord.message import Message
+from discord import File, User, ChannelType, HTTPException, Message
+from discord.ext import commands
+from pydantic import BaseModel
+
 from .utils import DiscordTextParser
 
 
 class Dm(commands.Cog):
     """Handle direct messaging and forward the message into a specified channel."""
 
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         channel: int
         forward_mentions: bool = True
         suppress_user_embeds: bool = True
@@ -24,7 +20,7 @@ class Dm(commands.Cog):
         def channels(self):
             return [self.channel]
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 
