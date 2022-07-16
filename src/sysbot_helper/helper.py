@@ -12,8 +12,8 @@ class ConfigHelper:
         return ''.join(map(str.capitalize, key.split('_')))
 
     CONFIG_GROUP_MAPPINGS = [
-        ('sudo', 'user', 'sudo'),
-        ('sysbot_channels', 'channel', 'sysbots')
+        ('user', 'sudo', 'sudo'),
+        ('channel', 'sysbot_channels', 'sysbots')
     ]
 
     def __init__(self, bot, config):
@@ -33,7 +33,7 @@ class ConfigHelper:
         }
 
         # Map some config from root to user/channel groups
-        for name, group_type, map_to in self.CONFIG_GROUP_MAPPINGS:
+        for group_type, name, map_to in self.CONFIG_GROUP_MAPPINGS:
             self.groups[group_type].update({map_to: config.pop(name, {})})
 
         self.motd = config.pop('motd', 'motd.txt')
@@ -90,16 +90,22 @@ class ConfigHelper:
                     continue
                 cls = getattr(module, cls_name)
 
+                # Check if feature is enabled
+                if hasattr(cls, '__feature__'):
+                    feature_check = all(self.bot.feature_enabled(feature) for feature in cls.__feature__)
+                    if not feature_check:
+                        log.warn('Unable to load cog: %s! Required features: %s', cls_name, cls.__feature__)
+                        continue
+
                 # Create a cog instance (with config) and add to the bot
                 if hasattr(cls, 'Config'):
                     log.info('Load cog with config: %s', cls_name)
-                    cls_config = getattr(cls, 'Config')
                     if isinstance(args, dict):
-                        instance = cls(self.bot, cls_config(**args))
+                        instance = cls(self.bot, cls.Config(**args))
                     elif isinstance(args, list):
-                        instance = cls(self.bot, cls_config(*args))
+                        instance = cls(self.bot, cls.Config(*args))
                     else:
-                        instance = cls(self.bot, cls_config(args))
+                        instance = cls(self.bot, cls.Config(args))
                 else:
                     log.info('Load cog: %s', cls_name)
                     instance = cls(self.bot)

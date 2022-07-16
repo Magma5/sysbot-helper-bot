@@ -15,7 +15,7 @@ class Bot(Base):
         bot_args = config.pop('bot', {})
 
         # Set intents from config
-        intents_config = bot_args.pop('intents')
+        intents_config = bot_args.pop('intents', {})
         intents = Intents.default()
         for k, v in intents_config.items():
             setattr(intents, k, v)
@@ -25,7 +25,7 @@ class Bot(Base):
         self.helper = ConfigHelper(self, config)
         self.template_env = Environment(
             loader=FileSystemLoader("templates"))
-        self.Session = None
+        self.features = set()
 
     def guild_config(self, guild):
         return self.helper.get_config('guild', guild.id)
@@ -56,6 +56,7 @@ class Bot(Base):
         from sqlalchemy.orm import sessionmaker
         engine = create_async_engine(database_url)
         self.Session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        self.features.add('database')
 
     def template_variables(self, ctx):
         """Search through all registered cogs and load variables"""
@@ -92,6 +93,9 @@ class Bot(Base):
                     self.add_command(cmd)
 
         return wrap_command
+
+    def feature_enabled(self, feature):
+        return feature in self.features
 
     async def on_ready(self):
         motd = self.helper.get_motd()

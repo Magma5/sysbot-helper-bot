@@ -21,6 +21,8 @@ async def get_user(ctx, session: AsyncSession):
 
 
 class Level(commands.Cog):
+    __feature__ = ['database']
+
     @dataclass
     class Config:
         pass
