@@ -105,7 +105,7 @@ class Telegram(commands.Cog):
         bot, chat_link = self.telegram_chats[message.channel.id]
         text = self.bot.template_env.from_string(chat_link.telegram_message).render(message=message) or '(Empty message)'
 
-        mapping = []
+        mapping: list[TelegramMessage] = []
 
         try:
             ref_id = self.discord_mappings[message.reference.message_id][0]
@@ -118,7 +118,7 @@ class Telegram(commands.Cog):
         for attachment in message.attachments:
             data = await attachment.read()
             telegram_document = BufferedInputFile(data, attachment.filename)
-            doc_msg = await bot.send_document(chat_link.chat, telegram_document, reply_to_message_id=mapping[0])
+            doc_msg = await bot.send_document(chat_link.chat, telegram_document, reply_to_message_id=mapping[0].message_id)
             mapping.append(doc_msg)
 
         self.add_message_mapping(message, mapping)
