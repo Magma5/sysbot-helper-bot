@@ -149,23 +149,36 @@ class Telegram(commands.Cog):
             'message': message
         })
 
-        # Check for edited message
-        if message.edit_date:
-            with suppress(KeyError):
-                existing_message = self.telegram_mappings[(message.chat.id, message.message_id)]
-                await channel.get_partial_message(existing_message).edit(**msg)
-            return
-
         # Forward the message
         resp = await channel.send(**msg)
 
         self.add_message_mapping(resp, [message])
 
+    async def edited_message_handler(self, message: TelegramMessage):
+        """Receive telegram message, send to discord."""
+
+        with suppress(KeyError):
+            chat_link = self.discord_channels[message.chat.id]
+            channel = self.bot.get_channel(chat_link.channel)
+
+            bot = aiogram.Bot.get_current()
+
+            # Convert Telegram message to discord message
+            discord_msg = await DiscordMessage.from_telegram(bot, message)
+            discord_msg.update(chat_link.discord_message)
+
+            msg = discord_msg.get_send(self.bot, {
+                'message': message
+            })
+
+            existing_message = self.telegram_mappings[(message.chat.id, message.message_id)]
+            await channel.get_partial_message(existing_message).edit(**msg)
+
     @commands.Cog.listener()
     async def on_ready(self):
         if not self.check_updates.is_running():
             self.dp.message.register(self.message_handler)
-            self.dp.edited_message.register(self.message_handler)
+            self.dp.edited_message.register(self.edited_message_handler)
             self.check_updates.start()
 
     @tasks.loop()
