@@ -37,16 +37,8 @@ class Bot(Base):
         return self.helper.get_config('user', user.id)
 
     @property
-    def guild_groups(self):
-        return self.helper.groups['guild']
-
-    @property
-    def channel_groups(self):
-        return self.helper.groups['channel']
-
-    @property
-    def user_groups(self):
-        return self.helper.groups['user']
+    def groups(self):
+        return self.helper.groups
 
     def set_database(self, database_url: str):
         """Initialize database session if needed. """
@@ -108,10 +100,9 @@ class Bot(Base):
         ctx.channel_config = lambda: self.channel_config(ctx.channel)
         ctx.author_config = lambda: self.user_config(ctx.author)
         ctx.env = self.template_env
-        ctx.user_groups = self.user_groups
-        ctx.channel_groups = self.channel_groups
-        ctx.guild_groups = self.guild_groups
+        ctx.groups = self.groups
 
+    # override
     async def get_context(self, message: Message, *, cls=Context):
         ctx = await super().get_context(message, cls=cls)
         self.context_attach_attributes(ctx)

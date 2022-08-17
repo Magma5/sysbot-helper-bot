@@ -11,30 +11,34 @@ class ConfigHelper:
     def cog_name(cls, key):
         return ''.join(map(str.capitalize, key.split('_')))
 
-    CONFIG_GROUP_MAPPINGS = [
-        ('user', 'sudo', 'sudo'),
-        ('channel', 'sysbot_channels', 'sysbots')
-    ]
+    CONFIG_GROUP_MAPPINGS = {
+        'sudo': 'sudo',
+        'sysbot_channels': 'sysbots'
+    }
+
+    DEPRECATED_CONFIGS = {
+        'guild_groups', 'guild_groups_save',
+        'channel_groups', 'channel_groups_save',
+        'user_groups', 'user_groups_save'
+    }
 
     def __init__(self, bot, config):
+        self._check_deprecated_configs(config)
+
         self.bot = bot
+
         self.configs = {
             'guild': config.pop('guilds', {}),
             'channel': config.pop('channels', {}),
             'user': config.pop('users', {})
         }
-        self.groups = {
-            'guild': Groups(config.pop('guild_groups', {}),
-                            config.pop('guild_groups_save', None)),
-            'channel': Groups(config.pop('channel_groups', {}),
-                              config.pop('channel_groups_save', None)),
-            'user': Groups(config.pop('user_groups', {}),
-                           config.pop('user_groups_save', {})),
-        }
+
+        self.groups = Groups(config.pop('groups', {}),
+                             config.pop('groups_save', None))
 
         # Map some config from root to user/channel groups
-        for group_type, name, map_to in self.CONFIG_GROUP_MAPPINGS:
-            self.groups[group_type].update({map_to: config.pop(name, {})})
+        for name, map_to in self.CONFIG_GROUP_MAPPINGS.items():
+            self.groups.update({map_to: config.pop(name, {})})
 
         self.motd = config.pop('motd', 'motd.txt')
 
@@ -112,3 +116,9 @@ class ConfigHelper:
 
                 self.bot.add_cog(instance)
                 self.cog_list.add(cls_name)
+
+    def _check_deprecated_configs(self, config):
+        deprecated_keys = config.keys() & self.DEPRECATED_CONFIGS
+        if deprecated_keys:
+            raise ValueError('The following configs are deprecated, please update!\n{}'.format(
+                             '\n'.join(deprecated_keys)))

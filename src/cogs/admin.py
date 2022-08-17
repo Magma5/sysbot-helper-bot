@@ -29,7 +29,7 @@ class Admin(CogSendError):
         self.votelock_list = {}
 
     def bot_channels(self, ctx):
-        return [ctx.bot.get_channel(ch) for ch in ctx.channel_groups.get_members('sysbots')]
+        return [ctx.bot.get_channel(ch) for ch in ctx.groups.get_members('sysbots')]
 
     async def do_channel_action(self, channels, action: ChannelAction):
         if not isinstance(channels, Iterable):
@@ -176,18 +176,18 @@ class Admin(CogSendError):
     @commands.has_permissions(administrator=True)
     async def add(self, ctx, channel: TextChannel = None):
         chan = channel or ctx.channel
-        if ctx.channel_groups.in_group(chan.id, 'sysbots'):
+        if ctx.groups.in_group(chan.id, 'sysbots'):
             return await ctx.send(f'{chan.mention} is already added to bot channels list!')
-        ctx.channel_groups.add_member_save('sysbots', chan.id)
+        ctx.groups.add_member_save('sysbots', chan.id)
         await ctx.send(f'{chan.mention} has been added. You will now get announcements in this channel.')
 
     @add.command()
     @commands.has_permissions(administrator=True)
     async def remove(self, ctx, channel: TextChannel = None):
         chan = channel or ctx.channel
-        if not ctx.channel_groups.in_group(chan.id, 'sysbots'):
+        if not ctx.groups.in_group(chan.id, 'sysbots'):
             return await ctx.send(f'{chan.mention} is not added to the bot channels!')
-        ctx.channel_groups.remove_member_save('sysbots', chan.id)
+        ctx.groups.remove_member_save('sysbots', chan.id)
         await ctx.send(f'{chan.mention} has been removed. You will no longer get announcements in this channel.')
 
     @add.command(aliases=('list',))
