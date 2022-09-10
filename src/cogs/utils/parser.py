@@ -1,42 +1,31 @@
 from contextlib import suppress
-import yaml
 import discord
+import frontmatter
+
+from sysbot_helper.utils import apply_obj_data
 
 
 class DiscordTextParser:
-    def __init__(self, text, parse=True):
-        self._text = text
-        if parse:
-            self.split_text()
+    def __init__(self, text):
+        post = frontmatter.loads(text)
+
+        self._post = post
+        self.headers = post.to_dict()
+        self.command_options = self.headers.pop('command', {})
+        self.split_text()
 
     def split_text(self):
-        headers = ''
-        fields = ''
-
-        # Find headers first
-        headers_split = self._text.split('---\n', 1)
-        if len(headers_split) == 1:
-            content = headers_split[0]
-        else:
-            headers, content = headers_split[1].split('\n---', 1)
+        self._fields = ''
 
         # Find description/fields split
-        content_split = content.split('\n\n\n', 1)
+        content_split = self.content.split('\n\n\n', 1)
         with suppress(IndexError):
-            description = content_split[0]
-            fields = content_split[1]
-
-        self._headers = headers
-        self._description = description
-        self._fields = fields
+            self.description = content_split[0].strip()
+            self._fields = content_split[1]
 
     @property
-    def headers(self):
-        return yaml.safe_load(self._headers)
-
-    @property
-    def description(self):
-        return self._description.strip()
+    def content(self):
+        return self._post.content
 
     @property
     def fields(self):
@@ -54,34 +43,26 @@ class DiscordTextParser:
                     yield name, value
 
     def make_response(self, **kwargs):
-        headers = self.headers
-
-        if not headers:
-            return {'content': self.description}
+        if 'title' not in self._post.keys():
+            return {'content': self.content}
         return {'embed': self.make_embed(**kwargs)}
 
     def make_embed(self, **attr):
-        headers = attr
-        headers.update(self.headers)
-        params = {k: v for k, v in headers.items()
-                  if not isinstance(v, (dict, list))}
-        embed = discord.Embed(description=self.description, **params)
+        params = {
+            'description': self.description
+        }
+        params.update(self._post)
+        params.update(attr)
 
-        for key in headers.keys() - params.keys():
-            args_list = headers[key]
+        params_special = {k: v for k, v in params.items()
+                          if isinstance(v, (dict, list))}
+        params_direct = {k: v for k, v in params.items()
+                         if k not in params_special}
 
-            # Load the embed method given method name
-            if not hasattr(embed, key):
-                continue
-            method = getattr(embed, key)
+        embed = discord.Embed(**params_direct)
 
-            # Determine if calling method multiple times
-            if isinstance(args_list, dict):
-                args_list = [args_list]
-
-            # Apply the given method
-            for item in args_list:
-                method(**item)
+        # Apply special dict or list values
+        apply_obj_data(embed, params_special)
 
         for name, value in self.iter_fields():
             embed.add_field(name=name, value=value, inline=True)
@@ -89,13 +70,18 @@ class DiscordTextParser:
         return embed
 
     @classmethod
-    def from_file(cls, filename, **args):
+    def from_file(cls, filename):
         with open(filename, encoding='utf8') as f:
             data = f.read()
 
-        return cls(data, **args)
+        return cls(data)
 
     @classmethod
-    def convert_embed(cls, text):
+    def convert_to_embed(cls, text):
         parser = cls(text)
         return parser.make_embed()
+
+    @classmethod
+    def convert_to_response(cls, text):
+        parser = cls(text)
+        return parser.make_response()

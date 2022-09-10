@@ -22,22 +22,13 @@ class Commands(commands.Cog):
 
     def make_text_command(self, name, filename=None, text=None):
         command_options = {'name': name}
-        send_embed = False
 
         # Pre-process the command, read special command options
         if filename is not None:
-            with open(join('templates', filename), encoding='utf-8') as f:
-                parser = DiscordTextParser(f.read())
-            headers = parser.headers
+            parser = DiscordTextParser.from_file(join('templates', filename))
 
             # Process the special key "command" that will pass as command options
-            if headers:
-                options = headers.pop('command', {})
-                command_options.update(options)
-
-            # If there are still some headers remain, then we need to send as embed
-            if headers:
-                send_embed = True
+            command_options.update(parser.command_options)
 
         @self.bot.make_command(**command_options)
         def _(ctx):
@@ -54,12 +45,9 @@ class Commands(commands.Cog):
             # Render the whole file before processing
             variables = ctx.template_variables()
             rendered = template.render(variables)
-            parser = DiscordTextParser(rendered)
 
             # Send either normal message or embed
-            if send_embed:
-                return {'embed': parser.make_embed(color=ctx.author.color)}
-            return {'content': parser.description}
+            return DiscordTextParser.convert_to_response(rendered)
 
     def load_commands(self):
         files = set(chain(

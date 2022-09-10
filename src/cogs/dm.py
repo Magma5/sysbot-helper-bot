@@ -83,11 +83,7 @@ class Dm(commands.Cog):
 
         try:
             # Try to parse it for embeds
-            if content.startswith('---'):
-                parser = DiscordTextParser(content)
-                response = parser.make_response()
-            else:
-                response = {'content': content}
+            response = DiscordTextParser.convert_to_response(content)
 
             # Attach files
             files = []
