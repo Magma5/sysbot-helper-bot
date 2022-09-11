@@ -15,10 +15,12 @@ class Bot(Base):
         bot_args = config.pop('bot', {})
 
         # Set intents from config
+        intents = Intents.all()
         intents_config = bot_args.pop('intents', {})
-        intents = Intents.default()
-        for k, v in intents_config.items():
-            setattr(intents, k, v)
+        if intents_config:
+            intents = Intents.default()
+            for k, v in intents_config.items():
+                setattr(intents, k, v)
 
         super().__init__(**bot_args, intents=intents)
 
