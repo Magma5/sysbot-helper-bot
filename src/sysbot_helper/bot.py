@@ -1,10 +1,17 @@
+import asyncio
 import logging
+import time
+import traceback
+from datetime import datetime
 
-from discord import Intents, Message, Interaction, ApplicationContext
-from discord.ext.commands import Bot as Base, Context, Command
+from discord import ApplicationContext, Intents, Interaction, Message
+from discord.ext import tasks
+from discord.ext.commands import Bot as Base
+from discord.ext.commands import Command, Context
 from jinja2 import Environment, FileSystemLoader
 
 from .helper import ConfigHelper
+from .schedule import ScheduledTask
 from .slash import MySlashCommand
 
 log = logging.getLogger(__name__)
@@ -28,6 +35,7 @@ class Bot(Base):
         self.template_env = Environment(
             loader=FileSystemLoader("templates"))
         self.features = set()
+        self.scheduled_tasks_timeout = 300
 
     def guild_config(self, guild):
         return self.helper.get_config('guild', guild.id)
@@ -46,7 +54,7 @@ class Bot(Base):
         """Initialize database session if needed. """
         if database_url is None:
             return
-        from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+        from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
         from sqlalchemy.orm import sessionmaker
         engine = create_async_engine(database_url)
         self.Session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -95,6 +103,33 @@ class Bot(Base):
         motd = self.helper.get_motd()
         if motd:
             print(motd)
+        if not self.loop_scheduled_tasks.is_running():
+            self.loop_scheduled_tasks.start()
+
+    @tasks.loop()
+    async def loop_scheduled_tasks(self):
+        bg_tasks = set()
+
+        while True:
+            sleep_sec = 60 - time.time() % 60
+            await asyncio.sleep(sleep_sec)
+            task = asyncio.create_task(self.invoke_scheduled_tasks())
+            task.add_done_callback(bg_tasks.discard)
+
+    async def invoke_scheduled_tasks(self):
+        now = datetime.now()
+
+        tasks = []
+        for cog in self.cogs.values():
+            for method in cog.__class__.__dict__.values():
+                if type(method) is not ScheduledTask:
+                    continue
+                tasks.append(asyncio.wait_for(method.try_invoke(cog, now), self.scheduled_tasks_timeout))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                traceback.print_exception(None, value=result, tb=result.__traceback__)
 
     def context_attach_attributes(self, ctx):
         ctx.template_variables = lambda: self.template_variables(ctx)
