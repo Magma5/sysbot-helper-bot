@@ -50,6 +50,12 @@ class Bot(Base):
     def groups(self):
         return self.helper.groups
 
+    def now(self):
+        time_cog = self.get_cog('Time')
+        if time_cog:
+            return time_cog.now()
+        return datetime.now()
+
     def set_database(self, database_url: str):
         """Initialize database session if needed. """
         if database_url is None:

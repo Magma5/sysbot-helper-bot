@@ -19,6 +19,10 @@ class Time(commands.Cog):
         zone = ZoneInfo(tz)
         return datetime.now(zone)
 
+    def now(self):
+        zone = ZoneInfo(self.config.timezone)
+        return datetime.now(zone)
+
     def template_variables(self, ctx):
         result = {
             'now': self.server_now(ctx),
