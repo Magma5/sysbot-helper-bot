@@ -1,9 +1,10 @@
 from datetime import datetime
 import traceback
-from discord.ext import commands, tasks
+from discord.ext import commands
 import aiohttp
 
 from pydantic import BaseModel
+from sysbot_helper import scheduled
 
 QUERY_DAILY_CHALLENGE_RECORDS = """
 query dailyCodingQuestionRecords($year: Int!, $month: Int!) {
@@ -88,12 +89,8 @@ class Leetcode(commands.Cog):
             message = await ch.send(f'**LeetCode Daily Challenge**\nDate: {date}\n#{frontend_id}: **[{difficulty}]** {title}\nLink: {link}')
             await message.create_thread(name=f'LeetCode {frontend_id} ({weekday})', auto_archive_duration=1440)
 
-    @commands.Cog.listener("on_ready")
-    async def on_ready(self):
-        self.leetcode_refresh.start()
-
-    @tasks.loop(minutes=10)
-    async def leetcode_refresh(self):
+    @scheduled('1-/10 * * * *')
+    async def leetcode_update(self):
         try:
             await self.fetch_daily_challenges()
         except Exception:
