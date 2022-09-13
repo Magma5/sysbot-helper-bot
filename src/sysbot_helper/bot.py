@@ -92,12 +92,12 @@ class Bot(Base):
                 elif name[:1] in '/_':
                     async def callback(ctx):
                         await ctx.respond(**func(ctx))
-                    cmd = MySlashCommand(callback, name=name[1:], aliases=aliases, **command_options)
+                    cmd = MySlashCommand(callback, name=name[1:], **command_options)
                     self.add_application_command(cmd)
                 else:
                     async def callback(ctx):
                         await ctx.send(**func(ctx))
-                    cmd = Command(callback, name=name, aliases=aliases, **command_options)
+                    cmd = Command(callback, name=name, **command_options)
                     self.add_command(cmd)
 
         return wrap_command

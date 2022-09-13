@@ -72,7 +72,8 @@ class ApiServer(commands.Cog):
 
     async def send_message(self, request):
         data = await request.text()
-        discord_send = DiscordTextParser.convert_to_response(data)
+        parser = DiscordTextParser(data, fail_ok=True)
+        discord_send = parser.make_response()
         channel_id = int(request.match_info['channel_id'])
         return await self._send_message_common(channel_id, **discord_send)
 
