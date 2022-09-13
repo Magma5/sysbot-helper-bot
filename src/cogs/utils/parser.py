@@ -11,7 +11,11 @@ class DiscordTextParser:
 
         self._post = post
         self.headers = post.to_dict()
+
+        self.content = self.headers.pop('content')
         self.command_options = self.headers.pop('command', {})
+        self.message_content = self.headers.pop('text', None)
+
         self.split_text()
 
     def split_text(self):
@@ -22,10 +26,6 @@ class DiscordTextParser:
         with suppress(IndexError):
             self.description = content_split[0].strip()
             self._fields = content_split[1]
-
-    @property
-    def content(self):
-        return self._post.content
 
     @property
     def fields(self):
@@ -45,21 +45,23 @@ class DiscordTextParser:
     def make_response(self, **kwargs):
         if 'title' not in self._post.keys():
             return {'content': self.content}
-        return {'embed': self.make_embed(**kwargs)}
+        return {
+            'content': self.message_content,
+            'embed': self.make_embed(**kwargs)
+        }
 
     def make_embed(self, **attr):
         params = {
             'description': self.description
         }
-        params.update(self._post)
+        params.update(self.headers)
         params.update(attr)
 
         params_special = {k: v for k, v in params.items()
-                          if isinstance(v, (dict, list))}
-        params_direct = {k: v for k, v in params.items()
-                         if k not in params_special}
+                          if k.startswith('set_') and isinstance(v, (dict, list))}
 
-        embed = discord.Embed(**params_direct)
+        embed = discord.Embed.from_dict(params)
+        # embed = discord.Embed(**params_direct)
 
         # Apply special dict or list values
         apply_obj_data(embed, params_special)
