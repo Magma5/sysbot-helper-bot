@@ -1,12 +1,13 @@
 import asyncio
 
-from discord.ext import commands
-from discord.errors import HTTPException
-from pydantic import BaseModel
-from .utils import DiscordTextParser
-
-from sysbot_helper import Bot
 from aiohttp import web
+from discord.errors import HTTPException
+from discord.ext import commands
+from pydantic import BaseModel
+from sysbot_helper import Bot
+from sysbot_helper.utils import embed_from_dict
+
+from .utils import DiscordTextParser
 
 
 class ApiServer(commands.Cog):
@@ -29,7 +30,9 @@ class ApiServer(commands.Cog):
                 web.get('/hello', self.hello),
                 web.get('/healthcheck', self.health_check),
                 web.post('/api/send_message/{channel_id:[0-9]+}', self.send_message),
-                web.post('/api/send_message', self.send_message_form)
+                web.post('/api/send_message', self.send_message_form),
+                web.get('/api/webhooks/{channel_id:[0-9]+}', self.get_webhook),
+                web.post('/api/webhooks/{channel_id:[0-9]+}', self.send_message_webhook)
             ])
             runner = web.AppRunner(app)
             await runner.setup()
@@ -88,3 +91,32 @@ class ApiServer(commands.Cog):
                 'error': 'Some parameters are missing or incorrect from the request.'
             }, status=400)
         return await self._send_message_common(channel_id, content=content)
+
+    async def get_webhook(self, request):
+        channel_id = int(request.match_info['channel_id'])
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            raise web.HTTPNotFound()
+
+        return web.json_response({
+            'type': 1,
+            'id': str(channel_id),
+            'channel_id': str(channel_id),
+            'guild_id': str(channel.guild.id),
+            'application_id': None,
+            'avatar': None
+        })
+
+    async def send_message_webhook(self, request):
+        data = await request.json()
+
+        content = data.get('content', '')
+        channel_id = int(request.match_info['channel_id'])
+        embeds_raw = data.get('embeds', None)
+        embeds = []
+
+        if embeds_raw:
+            for embed in embeds_raw:
+                embeds.append(embed_from_dict(embed))
+
+        return await self._send_message_common(channel_id, content=content, embeds=embeds)

@@ -22,6 +22,7 @@ SQLAlchemy = {extras = ["asyncio"], version = "^1.4.36"}
 alembic = "^1.7.7"
 asyncpg = "^0.25.0"
 python-frontmatter = "^1.0.0"
+iso8601 = "^1.0.2"
 
 [tool.poetry.dev-dependencies]
 pytype = "^2022.4.22"

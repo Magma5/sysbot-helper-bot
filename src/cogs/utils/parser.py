@@ -2,7 +2,7 @@ from contextlib import suppress
 
 import discord
 import frontmatter
-from sysbot_helper.utils import apply_obj_data
+from sysbot_helper.utils import apply_obj_data, embed_from_dict
 
 
 class DiscordTextParser:
@@ -85,7 +85,7 @@ class DiscordTextParser:
         params_set = {k: v for k, v in params.items()
                       if k.startswith('set_') and isinstance(v, (dict, list))}
 
-        embed = discord.Embed.from_dict(params)
+        embed = embed_from_dict(params)
 
         # Apply special dict or list values
         apply_obj_data(embed, params_set)
