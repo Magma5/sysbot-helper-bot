@@ -1,19 +1,19 @@
 import asyncio
-from collections import deque, namedtuple
+from collections import defaultdict, deque
 from contextlib import suppress
 from dataclasses import dataclass, field
-from random import gauss
 from time import time
 from typing import Union
 
 from discord.errors import HTTPException
-from discord.ext import commands, tasks
+from discord.ext import commands
 from pydantic import BaseModel
+from sysbot_helper import Bot, scheduled
 
 
 @dataclass
 class ChannelInfo:
-    message_text: str
+    message_text: str = None
     last_activity: float = field(default_factory=time)
     message_history: deque = field(default_factory=deque)
 
@@ -40,51 +40,33 @@ class FloatingHelp(commands.Cog):
         auto_refresh_interval: int = 30
         skip_locked_channels: bool = False
 
-    def __init__(self, bot, config: Config):
+    def __init__(self, bot: Bot, config: Config):
         self.bot = bot
         self.config = config
 
-        self.channels: dict[int, ChannelInfo] = {}
-        # iterate through all configured channel (groups) and initialize ChannelInfo
-        for channel_group in config.channels:
-            for channel_id in bot.groups.get_members(channel_group):
-                info = ChannelInfo(config.channels[channel_group])
-                self.channels[channel_id] = info
+        self.channels: dict[int, ChannelInfo] = defaultdict(ChannelInfo)
+        self.inactive_channels: set[int] = set()
 
-    @commands.Cog.listener("on_ready")
-    async def on_ready(self):
-        # Find old messages from the channel
-        for channel_id, info in self.channels.items():
-            async with info.lock:
-                history = await self.get_message_history(channel_id)
-                info.message_history.extend(history)
-        if self.config.auto_refresh:
-            self.auto_refresh.start()
+    @property
+    def resolved_channels(self):
+        return list(self.bot.channels_in_group(*self.config.channels.keys()))
 
     async def get_message_history(self, channel_id):
         channel = self.bot.get_channel(channel_id)
-        history = []
 
         # history() returns message from newest to oldest
         async for message in channel.history(limit=self.config.check_message_history):
             if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
-                history.append(message)
-        return history
+                yield message
 
     async def refresh_message(self, channel_id):
         channel = self.bot.get_channel(channel_id)
         info = self.channels[channel_id]
 
-        # Generate a fake context given the values we have.
-        # Can't have an actual context because Message object is missing
-        Context = namedtuple('Context', 'bot guild channel author')
-        ctx = Context(self.bot, channel.guild, channel, self.bot.user)
-        variables = self.bot.template_variables(ctx)
-
         # Render template
+        variables = self.bot.template_variables(channel)
         template = self.bot.template_env.from_string(info.message_text)
         content = template.render(variables).strip() + self.config.magic_space
-        queue = info.message_history
 
         # Use API to retrieve history, so that it handles deleted messages as well
         last_message_id = 0
@@ -92,44 +74,62 @@ class FloatingHelp(commands.Cog):
             last_message_id = message.id
 
         async with info.lock:
+            # Check if channel needs skip
             if self.should_skip(channel):
                 # Delete every single old messages
-                for msg in queue:
+                for msg in info.message_history:
                     with suppress(HTTPException):
                         await msg.delete()
-                return queue.clear()
+                return info.message_history.clear()
 
-            # Try to clean old messages
-            while queue and queue[-1].id != last_message_id:
+            # Refresh message history if not present
+            if not info.message_history:
+                async for msg in self.get_message_history(channel.id):
+                    info.message_history.append(msg)
+
+            # Try to clean old messages except the last message
+            while info.message_history and info.message_history[-1].id != last_message_id:
                 with suppress(HTTPException):
-                    await queue.pop().delete()
+                    await info.message_history.pop().delete()
 
+            # Edit the last message if possible, otherwise send a new one.
             try:
-                if queue[-1].content != content:
-                    await queue[-1].edit(content=content)
+                if info.message_history[-1].content != content:
+                    await info.message_history[-1].edit(content=content)
                     return True
                 return False
             except (IndexError, HTTPException):
                 # Send new message, if history is empty
                 message = await channel.send(content)
-                queue.append(message)
+                info.message_history.append(message)
                 return True
 
     def should_skip(self, channel):
-        perms = channel.permissions_for(channel.guild.default_role)
-        if self.config.skip_locked_channels and perms.send_messages is False:
+        if channel.id in self.inactive_channels:
             return True
-        return False
+        perms = channel.permissions_for(channel.guild.default_role)
+        return self.config.skip_locked_channels and perms.send_messages is False
 
-    @tasks.loop()
+    @scheduled('* * * * *', seconds='*/10')
     async def auto_refresh(self):
+        await self._auto_refresh()
+
+    async def _auto_refresh(self):
+        # Refresh all the channels
+        channel_ids = set()
+        for name, message_text in self.config.channels.items():
+            for channel in self.bot.get_channels_in_group(name):
+                self.channels[channel.id].message_text = message_text
+                channel_ids.add(channel.id)
+
+        # Find out which channels are no longer part of the list
+        self.inactive_channels = self.channels.keys() - channel_ids
+
         for channel_id, info in self.channels.items():
             if info.wait.locked():
                 continue
-            if await self.refresh_message(channel_id):
-                await asyncio.sleep(gauss(5, 1))
-        interval = self.config.auto_refresh_interval
-        await asyncio.sleep(interval, interval / 5)
+
+            await self.refresh_message(channel_id)
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message):

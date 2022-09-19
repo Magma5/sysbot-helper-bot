@@ -9,7 +9,7 @@ from itertools import chain
 @dataclass
 class Group:
     members: set[Any] = field(default_factory=set)
-    childs: set[int] = field(default_factory=set)
+    children: set[int] = field(default_factory=set)
 
 
 def serialize_sets(obj):
@@ -22,8 +22,9 @@ class Groups:
     ALL_GROUP = 'all'
 
     def __init__(self, config={}, save_file=None):
-        self.group_names = {}
-        self.groups = []
+        self.group_names: dict[str, int] = {}
+        self.groups: list[Group] = []
+
         self.update(config)
         self.init_save_file(save_file)
 
@@ -44,8 +45,8 @@ class Groups:
 
     def add_member_save(self, name, *member_ids):
         if name not in self.saved_groups:
-            group = self.ensure_group(name)
-            group.childs.add(len(self.groups))
+            group = self._ensure_group(name)
+            group.children.add(len(self.groups))
             self.groups.append(Group(self.saved_groups[name]))
         self.saved_groups[name].update(member_ids)
         self.write_save_file()
@@ -80,7 +81,7 @@ class Groups:
         while q:
             group = q.popleft()
             members.update(self.groups[group].members)
-            for child in self.groups[group].childs:
+            for child in self.groups[group].children:
                 if child in visited:
                     continue
                 q.append(child)
@@ -94,14 +95,14 @@ class Groups:
     def get_group(self, name):
         return self.groups[self.group_names[name]]
 
-    def ensure_group(self, name):
+    def _ensure_group(self, name):
         if name not in self.group_names:
             self.group_names[name] = len(self.groups)
             self.groups.append(Group())
         return self.get_group(name)
 
     def _update_groups(self, name, value):
-        group = self.ensure_group(name)
+        group = self._ensure_group(name)
 
         if isinstance(value, list):
             for v in value:
@@ -109,7 +110,7 @@ class Groups:
         elif isinstance(value, dict):
             for k, v in value.items():
                 self._update_groups(k, v)
-                group.childs.add(self.group_names[k])
+                group.children.add(self.group_names[k])
         else:  # actual value
             group.members.add(value)
 

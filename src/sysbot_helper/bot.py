@@ -3,8 +3,9 @@ import logging
 import time
 import traceback
 from datetime import datetime
+from types import SimpleNamespace
 
-from discord import ApplicationContext, Intents, Interaction, Message
+from discord import ApplicationContext, Intents, Interaction, Message, TextChannel
 from discord.ext import tasks
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Command, Context
@@ -36,6 +37,7 @@ class Bot(Base):
             loader=FileSystemLoader("templates"))
         self.features = set()
         self.scheduled_tasks_timeout = 300
+        self.bg_tasks = set()
 
     def guild_config(self, guild):
         return self.helper.get_config('guild', guild.id)
@@ -49,6 +51,10 @@ class Bot(Base):
     @property
     def groups(self):
         return self.helper.groups
+
+    def get_channels_in_group(self, *name):
+        yield from filter(None,
+                          map(self.get_channel, self.groups.get_members(*name)))
 
     def now(self):
         time_cog = self.get_cog('Time')
@@ -68,6 +74,15 @@ class Bot(Base):
 
     def template_variables(self, ctx):
         """Search through all registered cogs and load variables"""
+
+        # Generate a fake context without the message object
+        if isinstance(ctx, TextChannel):
+            ctx = SimpleNamespace(
+                bot=self,
+                guild=ctx.guild,
+                channel=ctx,
+                author=self.user)
+
         result = self.helper.template_variables_base(ctx)
         for cog in self.cogs.values():
             if hasattr(cog, 'template_variables'):
@@ -111,26 +126,27 @@ class Bot(Base):
             print(motd)
         if not self.loop_scheduled_tasks.is_running():
             self.loop_scheduled_tasks.start()
+            task = asyncio.create_task(self.invoke_scheduled_tasks(True))
+            task.add_done_callback(self.bg_tasks.discard)
 
     @tasks.loop()
     async def loop_scheduled_tasks(self):
-        bg_tasks = set()
+        sleep_sec = 60 - time.time() % 60
+        await asyncio.sleep(sleep_sec)
+        task = asyncio.create_task(self.invoke_scheduled_tasks()) \
+            .add_done_callback(self.bg_tasks.discard)
+        self.bg_tasks.add(task)
 
-        while True:
-            sleep_sec = 60 - time.time() % 60
-            await asyncio.sleep(sleep_sec)
-            task = asyncio.create_task(self.invoke_scheduled_tasks())
-            task.add_done_callback(bg_tasks.discard)
-
-    async def invoke_scheduled_tasks(self):
-        now = datetime.now()
+    async def invoke_scheduled_tasks(self, on_ready=False):
+        now = self.now()
 
         tasks = []
         for cog in self.cogs.values():
             for method in cog.__class__.__dict__.values():
                 if type(method) is not ScheduledTask:
                     continue
-                tasks.append(asyncio.wait_for(method.try_invoke(cog, now), self.scheduled_tasks_timeout))
+                tasks.append(asyncio.wait_for(
+                    method.try_invoke(cog, now, on_ready), self.scheduled_tasks_timeout))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for result in results:

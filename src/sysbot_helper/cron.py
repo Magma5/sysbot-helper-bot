@@ -16,6 +16,10 @@ _DAY_NAMES['0'] = 7
 
 class CronItem:
     @classmethod
+    def Second(cls, e):
+        return cls(e, 0, 59)
+
+    @classmethod
     def Minute(cls, e):
         return cls(e, 0, 59)
 

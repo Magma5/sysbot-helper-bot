@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from collections import namedtuple
 
 from discord.ext import commands
 from pydantic import BaseModel
@@ -24,9 +23,7 @@ class Stats(commands.Cog):
             channel = self.bot.get_channel(channel_id)
             guild = channel.guild
 
-            Context = namedtuple('Context', 'bot guild channel author')
-            ctx = Context(self.bot, guild, channel, self.bot.user)
-            variables = self.bot.template_variables(ctx)
+            variables = self.bot.template_variables(channel)
 
             # Render template
             template = self.bot.template_env.from_string(channel_template)
