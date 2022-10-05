@@ -3,6 +3,7 @@ from contextlib import suppress
 import discord
 import frontmatter
 from sysbot_helper.utils import apply_obj_data, embed_from_dict
+from slugify import slugify
 
 
 class DiscordTextParser:
@@ -26,6 +27,12 @@ class DiscordTextParser:
 
         self.command_options = self.headers.pop('command', {})
         self.message_content = self.headers.pop('text', None)
+
+        self.title = self.headers.get('title', None)
+        self.menu_title = self.headers.pop('menu_title', self.title)
+        self.menu_id = None
+        if self.menu_title:
+            self.menu_id = self.headers.pop('menu_id', slugify(self.menu_title))
 
         help_desc = self.headers.pop('help-desc', None)
         aliases = self.headers.pop('aliases', None)
@@ -65,11 +72,19 @@ class DiscordTextParser:
                         self.fields.append((name, value))
 
     def make_response(self, **kwargs):
-        if self.post is None or 'title' not in self.headers:
-            return {'content': self.text}
+        if self.post is None:
+            return {
+                'content': self.text,
+                'embeds': []
+            }
+        if self.title is None:
+            return {
+                'content': self.post.content,
+                'embeds': []
+            }
         return {
             'content': self.message_content,
-            'embed': self.make_embed(**kwargs)
+            'embeds': [self.make_embed(**kwargs)]
         }
 
     def make_embed(self, **attr):
