@@ -8,12 +8,11 @@ from types import SimpleNamespace
 from discord import ApplicationContext, Intents, Interaction, Message, TextChannel
 from discord.ext import tasks
 from discord.ext.commands import Bot as Base
-from discord.ext.commands import Command, Context
+from discord.ext.commands import Context
 from jinja2 import Environment, FileSystemLoader
 
 from .helper import ConfigHelper
 from .schedule import ScheduledTask
-from .slash import MySlashCommand
 
 log = logging.getLogger(__name__)
 
@@ -89,33 +88,6 @@ class Bot(Base):
                 fn = getattr(cog, 'template_variables')
                 result.update(fn(ctx))
         return result
-
-    def make_command(self, **command_options):
-        def wrap_command(func):
-            name = command_options.pop('name')
-            aliases = command_options.pop('aliases', [])
-
-            # Register aliases too
-            name_aliases = name.split(',') + aliases
-
-            log.info('Register command name=%s', name_aliases)
-
-            for name in name_aliases:
-                name = name.strip()
-                if len(name) <= 0:
-                    continue
-                elif name[:1] in '/_':
-                    async def callback(ctx):
-                        await ctx.respond(**func(ctx))
-                    cmd = MySlashCommand(callback, name=name[1:], **command_options)
-                    self.add_application_command(cmd)
-                else:
-                    async def callback(ctx):
-                        await ctx.send(**func(ctx))
-                    cmd = Command(callback, name=name, **command_options)
-                    self.add_command(cmd)
-
-        return wrap_command
 
     def feature_enabled(self, feature):
         return feature in self.features

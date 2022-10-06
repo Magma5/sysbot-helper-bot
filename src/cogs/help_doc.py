@@ -73,6 +73,9 @@ class HelpDoc(commands.Cog):
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: Interaction):
+        if not interaction.custom_id:
+            return
+
         if not interaction.custom_id.startswith('help_doc:'):
             return
 
