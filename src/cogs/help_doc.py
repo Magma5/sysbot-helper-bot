@@ -12,6 +12,7 @@ class HelpDoc(commands.Cog):
 
     class Config(BaseModel):
         templates_root = 'templates/docs'
+        options_per_menu = 25
 
     def __init__(self, bot, config: Config):
         self.bot = bot
@@ -20,7 +21,7 @@ class HelpDoc(commands.Cog):
     def _load_docs(self, name):
         base = Path(self.config.templates_root)
         root = base / name
-        docs: list[DiscordTextParser] = []
+        parser_list = []
         if not root.resolve().is_relative_to(base.resolve()):
             raise ValueError('Invalid name')
 
@@ -28,31 +29,36 @@ class HelpDoc(commands.Cog):
             parser = DiscordTextParser.from_file(fn)
             if not parser.menu_id:
                 continue
-            docs.append(parser)
-        return docs
+            parser_list.append(parser)
+        return parser_list
 
     def _create_response(self, name, id=None):
         docs = self._load_docs(name)
         if not docs:
             return {}
 
-        select = ui.Select(custom_id=f'help_doc:menu:{name}')
-        view = ui.View(select)
-
+        menus = []
         selected_doc = docs[0]
 
-        for doc in docs:
-            select.add_option(label=doc.menu_title, value=doc.menu_id)
-            if doc.menu_id == id:
-                selected_doc = doc
+        for i, doc in enumerate(docs):
+            menu_idx = i // self.config.options_per_menu
+            if menu_idx >= len(menus):
+                menus.append(ui.Select(custom_id=f'help_doc:menu:{name}::{menu_idx}'))
+            select = menus[menu_idx]
 
-        select.placeholder = selected_doc.menu_title
+            match = doc.menu_id == id
+
+            if match:
+                selected_doc = doc
+                select.placeholder = doc.menu_title
+
+            select.add_option(label=doc.menu_title, value=doc.menu_id, default=match)
+
         return selected_doc.make_response() | {
-            'view': view
+            'view': ui.View(*menus)
         }
 
-    @commands.command()
-    async def helpdoc(self, ctx, name: str):
+    async def send_docs(self, ctx, name: str):
         try:
             response = self._create_response(name)
         except ValueError as e:
@@ -60,6 +66,10 @@ class HelpDoc(commands.Cog):
 
         if response:
             await ctx.send(**response)
+
+    @commands.command()
+    async def helpdoc(self, ctx, name: str):
+        await self.send_docs(ctx, name)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: Interaction):

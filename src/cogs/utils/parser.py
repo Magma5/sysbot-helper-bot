@@ -1,101 +1,83 @@
 from contextlib import suppress
+import re
 
 import discord
 import frontmatter
 from sysbot_helper.utils import apply_obj_data, embed_from_dict
 from slugify import slugify
+from collections import defaultdict
 
 
-class DiscordTextParser:
-    def __init__(self, text, fail_ok=False):
-        self.text = text
-        self.post = None
+class Post:
+    def __init__(self, content, metadata={}):
+        self.content = content
+        self.metadata = defaultdict(dict) | metadata
 
-        try:
-            self.post = frontmatter.loads(text)
-        except Exception:
-            if fail_ok:
-                return
-            raise
+        self.command_options = self.metadata.pop('command', {})
 
-        self.headers = {
-            'author': {},
-            'thumbnail': {}
-        }
+        # Process key aliases
+        with suppress(KeyError):
+            self.command_options['description'] = self.metadata.pop('help-desc')
+        with suppress(KeyError):
+            self.command_options['aliases'] = self.metadata.pop('aliases').split(',')
+        with suppress(KeyError):
+            self.metadata['author']['name'] = self.metadata.pop('author.name')
+        with suppress(KeyError):
+            self.metadata['author']['url'] = self.metadata.pop('author.url')
+        with suppress(KeyError):
+            self.metadata['thumbnail']['url'] = self.metadata.pop('thumbnail-url')
+        with suppress(KeyError):
+            self.metadata['image']['url'] = self.metadata.pop('image-url')
 
-        self.headers.update(self.post.metadata)
+        if type(self.metadata.get('color')) is str:
+            self.metadata['color'] = int(self.metadata['color'], 16)
 
-        self.command_options = self.headers.pop('command', {})
-        self.message_content = self.headers.pop('text', None)
+        self.repeat = self.metadata.pop('repeat', 1)
 
-        self.title = self.headers.get('title', None)
-        self.menu_title = self.headers.pop('menu_title', self.title)
-        self.menu_id = None
-        if self.menu_title:
-            self.menu_id = self.headers.pop('menu_id', slugify(self.menu_title))
+        # Process title
+        self.title = self.metadata.get('title')
+        self.menu_title = self.metadata.pop('menu_title', self.title)
+        self.menu_id = self.metadata.pop('menu_id', None)
+        if self.menu_title and not self.menu_id:
+            self.menu_id = slugify(self.menu_title)
 
-        help_desc = self.headers.pop('help-desc', None)
-        aliases = self.headers.pop('aliases', None)
-        author_name = self.headers.pop('author.name', None)
-        author_url = self.headers.pop('author.url', None)
-        thumbnail_url = self.headers.pop('thumbnail-url', None)
-
-        if help_desc:
-            self.command_options['description'] = help_desc
-        if aliases:
-            self.command_options['aliases'] = aliases.split(',')
-        if author_name:
-            self.headers['author']['name'] = author_name
-        if author_url:
-            self.headers['author']['url'] = author_url
-        if thumbnail_url:
-            self.headers['thumbnail']['url'] = thumbnail_url
-
-        self.split_fields()
-
-    def split_fields(self):
+        # Process fields
         self.fields = []
+        self.inline = self.metadata.pop('inline', True)
+
+        if self.title is None:
+            return
+
+        if not self.metadata.pop('process_fields', True):
+            self.description = self.content
+            return
 
         # Find description/fields split
-        content_split = self.post.content.split('\n\n\n', 1)
+        description_delimiter = re.compile(r'\n{3,}')
+        field_delimiter = re.compile(r'\n{2,}')
+        content_split = description_delimiter.split(self.content, 1)
         self.description = content_split[0].strip()
 
         with suppress(IndexError):
             fields = content_split[1]
-            for section in fields.split('\n\n'):
-                lines = section.strip()
-                if lines:
-                    split = lines.split('\n')
-                    name = split[0]
-                    value = '\n'.join(split[1:])
-                    if name and value:
-                        self.fields.append((name, value))
+            for section in field_delimiter.split(fields):
+                if not section:
+                    continue
 
-    def make_response(self, **kwargs):
-        if self.post is None:
-            return {
-                'content': self.text,
-                'embeds': []
-            }
+                split = section.split('\n', 1)
+                if len(split) == 2:
+                    self.fields.append(split)
+
+    def is_embed(self):
+        return 'title' in self.metadata
+
+    def make_embed(self, **attrs):
         if self.title is None:
-            return {
-                'content': self.post.content,
-                'embeds': []
-            }
-        return {
-            'content': self.message_content,
-            'embeds': [self.make_embed(**kwargs)]
-        }
-
-    def make_embed(self, **attr):
-        if self.post is None:
-            return discord.Embed(description=self.text)
+            return discord.Embed(description=self.content)
 
         params = {
             'description': self.description
-        }
-        params.update(self.headers)
-        params.update(attr)
+        } | self.metadata | attrs
 
         params_set = {k: v for k, v in params.items()
                       if k.startswith('set_') and isinstance(v, (dict, list))}
@@ -106,9 +88,90 @@ class DiscordTextParser:
         apply_obj_data(embed, params_set)
 
         for name, value in self.fields:
-            embed.add_field(name=name, value=value, inline=True)
+            embed.add_field(name=name, value=value, inline=self.inline)
 
         return embed
+
+
+class DiscordTextParser:
+    def __init__(self, text, fail_ok=False):
+        self.posts = self._load_posts(text)
+
+    @property
+    def command_options(self):
+        return self.metadata.get('command_options', {})
+
+    @property
+    def post(self):
+        if len(self.posts) > 1:
+            return self.posts[1]
+        return self.posts[0]
+
+    @property
+    def metadata(self):
+        return self.post.metadata
+
+    @property
+    def menu_id(self):
+        return self.post.menu_id
+
+    @property
+    def menu_title(self):
+        return self.post.menu_title
+
+    def _load_posts(self, text):
+        """Parse the given text as a list of multiple posts."""
+
+        handlers = [frontmatter.JSONHandler, frontmatter.YAMLHandler, frontmatter.TOMLHandler]
+
+        posts = []
+
+        current_post = []
+        current_handler = None
+
+        for line in text.split('\n'):
+            if current_handler is None:
+                for handler in handlers:
+                    if handler and handler.FM_BOUNDARY.match(line):
+                        current_handler = handler
+                        post = '\n'.join(current_post)
+                        current_post.clear()
+
+                        try:
+                            parsed = frontmatter.loads(post)
+                            posts.append(Post(parsed.content, parsed.metadata))
+                        except ValueError:
+                            posts.append(Post(post))
+                        break
+
+            elif current_handler.FM_BOUNDARY.match(line):
+                current_handler = None
+            current_post.append(line)
+
+        # Guarantee to have at least one post
+        post = '\n'.join(current_post)
+        try:
+            parsed = frontmatter.loads(post)
+            posts.append(Post(parsed.content, parsed.metadata))
+        except ValueError:
+            posts.append(Post(post))
+
+        return posts
+
+    def make_response(self, **kwargs):
+        content = []
+        embeds = []
+        for post in self.posts:
+            for _ in range(post.repeat):
+                if not post.is_embed():
+                    content.append(post.content)
+                else:
+                    embeds.append(post.make_embed(**kwargs))
+
+        return {
+            'content': '\n'.join(content).strip(),
+            'embeds': embeds
+        }
 
     @classmethod
     def from_file(cls, filename):
@@ -118,11 +181,5 @@ class DiscordTextParser:
         return cls(data)
 
     @classmethod
-    def convert_to_embed(cls, text):
-        parser = cls(text)
-        return parser.make_embed()
-
-    @classmethod
     def convert_to_response(cls, text):
-        parser = cls(text)
-        return parser.make_response()
+        return cls(text).make_response()
