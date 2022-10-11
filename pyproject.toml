@@ -24,6 +24,7 @@ asyncpg = "^0.25.0"
 python-frontmatter = "^1.0.0"
 iso8601 = "^1.0.2"
 python-slugify = "^6.1.2"
+markdownify = "^0.11.6"
 
 [tool.poetry.dev-dependencies]
 pytype = "^2022.4.22"

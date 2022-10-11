@@ -1,16 +1,38 @@
 import asyncio
+import email.policy
+import re
+import traceback
 from contextlib import suppress
+from email import message_from_string
+from email.message import EmailMessage
 from io import BytesIO
 
 from aiohttp import web
+from discord import Embed, File
 from discord.errors import HTTPException
 from discord.ext import commands
+from markdownify import markdownify
 from pydantic import BaseModel
 from sysbot_helper import Bot
 from sysbot_helper.utils import embed_from_dict
-from discord import File
 
 from .utils import DiscordTextParser
+
+
+def body_get(body, name):
+    field = body.get(name, '')
+    if type(field) is bytes:
+        return field.decode('utf8')
+    if type(field) is web.FileField:
+        return field.file.read().decode('utf8')
+    return field
+
+
+def body_get_bytes(body, name):
+    field = body.get(name, b'')
+    if type(field) is web.FileField:
+        return field.file.read()
+    return field
 
 
 class DiscordHandler():
@@ -22,7 +44,8 @@ class DiscordHandler():
             web.post('/api/send_message/{channel_id:[0-9]+}', self.send_message),
             web.post('/api/send_message', self.send_message_form),
             web.get('/api/webhooks/{channel_id:[0-9]+}', self.get_webhook),
-            web.post('/api/webhooks/{channel_id:[0-9]+}', self.send_message_webhook)
+            web.post('/api/webhooks/{channel_id:[0-9]+}', self.send_message_webhook),
+            web.post('/api/sendgrid/{channel_id:[0-9]+}', self.send_message_sendgrid)
         ]
 
     async def hello(self, _):
@@ -79,12 +102,12 @@ class DiscordHandler():
             async for part in multipart:
                 if part.name == 'payload_json':
                     data.update(await part.json())
-                elif part.name.startswith('file['):
+                elif re.match(r'files?(\[[0-9]\])?$', part.name):
                     io = BytesIO(bytes(await part.read()))
                     file = File(io, filename=part.filename)
                     files.append(file)
                 else:
-                    data[part.name] = (await part.read()).decode('utf8')
+                    data[part.name] = (await part.read(decode=True)).decode('utf8')
 
         content = data.get('content', '')
 
@@ -99,6 +122,42 @@ class DiscordHandler():
         # Create a task and run in the background
         asyncio.create_task(send_message)
         return web.Response(status=204)
+
+    async def send_message_sendgrid(self, request: web.Request):
+        channel_id = int(request.match_info['channel_id'])
+
+        body = await request.post()
+        content = []
+        content.append(f'**From**: {body_get(body, "from")}')
+        content.append(f'**To**: {body_get(body, "to")}')
+        content.append(f'**Subject**: {body_get(body, "subject")}')
+        content.append('')
+
+        files = []
+        try:
+            eml: EmailMessage = message_from_string(self.body_get(body, 'email'),
+                                                    policy=email.policy.default)
+            eml_body = eml.get_body()
+            if eml_body:
+                md = markdownify.markdownify(eml_body.get_content())
+                content.append(md)
+
+            for attachment in eml.iter_attachments():
+                value = attachment.get_payload(decode=True)
+                if value and type(value) is bytes:
+                    files.append(File(BytesIO(value), filename=attachment.get_filename()))
+
+        except Exception:
+            content.append('Cannot parse email body!')
+            traceback.print_exc()
+
+            eml_data = body_get_bytes(body, 'email')
+            if eml_data:
+                files.append(BytesIO(eml_data), filename='message.eml')
+
+        embed = Embed(description='\n'.join(content))
+
+        return await self._send_message_common(channel_id, embed=embed, files=files)
 
     async def _send_message_common(self, channel_id, **kwargs):
         try:
