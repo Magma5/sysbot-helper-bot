@@ -5,7 +5,8 @@ import traceback
 from datetime import datetime
 from types import SimpleNamespace
 
-from discord import ApplicationContext, Intents, Interaction, Message, TextChannel
+from discord import ApplicationContext, Intents, Interaction, Message
+from discord.abc import GuildChannel
 from discord.ext import tasks
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
@@ -75,7 +76,7 @@ class Bot(Base):
         """Search through all registered cogs and load variables"""
 
         # Generate a fake context without the message object
-        if isinstance(ctx, TextChannel):
+        if isinstance(ctx, GuildChannel):
             ctx = SimpleNamespace(
                 bot=self,
                 guild=ctx.guild,
