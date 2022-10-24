@@ -12,6 +12,7 @@ from discord.ext import commands, tasks
 from pydantic import BaseModel
 from sqlalchemy import select
 from sysbot_helper import Bot
+from sysbot_helper.aiogram import unparse_entities
 
 from .models import TelegramMapping
 from .utils.discord_action import DiscordMessage
@@ -23,7 +24,7 @@ class ChatLink(BaseModel):
     bot: str
     channel: int
     chat: int
-    discord_message: str = '**{{ message.from_user.first_name or "" }} {{ message.from_user.last_name or "" }}**: {{message.text or message.caption or ""}}'
+    discord_message: str = '**{{ message.from_user.first_name or "" }} {{ message.from_user.last_name or "" }}**: {{ text }}'
     telegram_message: str = '<b>{{ message.author.name }}</b>: {{message.clean_content | e}}'
 
 
@@ -205,7 +206,8 @@ class Telegram(commands.Cog):
             discord_msg.update({'reference': channel.get_partial_message(discord_ref)})
 
         msg = discord_msg.get_send(self.bot, {
-            'message': message
+            'message': message,
+            'text': unparse_entities(message)
         })
 
         # Forward the message
