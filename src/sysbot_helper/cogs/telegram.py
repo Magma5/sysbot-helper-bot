@@ -7,6 +7,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.dispatcher.dispatcher import Dispatcher
 from aiogram.types import BufferedInputFile
 from aiogram.types import Message as TelegramMessage
+from aiogram.exceptions import AiogramError
 from discord import Attachment, Message, MessageReference
 from discord.ext import commands, tasks
 from pydantic import BaseModel
@@ -242,7 +243,9 @@ class Telegram(commands.Cog):
     @tasks.loop()
     async def check_updates(self):
         try:
-            await self.dp.start_polling(*self.bots.values())
+            await self.dp.start_polling(*self.bots.values(), polling_timeout=30)
         except CancelledError:
             await self.session.close()
             self.check_updates.cancel()
+        except AiogramError:
+            log.warn(exc_info=True)
