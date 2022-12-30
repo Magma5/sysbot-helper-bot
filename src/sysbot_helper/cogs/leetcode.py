@@ -36,16 +36,17 @@ query questionOfToday {
 """
 
 
+class LeetcodeConfig(BaseModel):
+    channels: list[int]
+    debug: bool = False
+
+
 class Leetcode(commands.Cog):
     """Announce leetcode daily challenges."""
 
     seen_dates = None
 
-    class Config(BaseModel):
-        channels: list[int]
-        debug: bool = False
-
-    def __init__(self, bot, config: Config):
+    def __init__(self, bot, config: LeetcodeConfig):
         self.bot = bot
         self.config = config
 

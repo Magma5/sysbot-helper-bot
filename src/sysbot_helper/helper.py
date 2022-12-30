@@ -88,34 +88,59 @@ class ConfigHelper:
                 module_name = f"{pkg}.{cog_key}"
                 cls_name = self.cog_name(cog_key)
 
-                module = import_module(module_name)
-                if not hasattr(module, cls_name):
-                    log.warn('Unable to load cog %s from package %s!', cls_name, module_name)
+                try:
+                    module = self._load_cog_module(module_name)
+                    cls = getattr(module, cls_name)
+                except ModuleNotFoundError:
+                    # Ignore module loading errors and continue to load the next cog
+                    log.error('Unable to import package %s!', module_name, exc_info=True)
                     continue
-                cls = getattr(module, cls_name)
+                except AttributeError:
+                    log.error('Unable to load cog class %s from package %s!', cls_name, module_name, exc_info=True)
+                    continue
 
                 # Check if feature is enabled
                 if hasattr(cls, '__feature__'):
                     feature_check = all(self.bot.feature_enabled(feature) for feature in cls.__feature__)
                     if not feature_check:
-                        log.warn('Unable to load cog: %s! Required features: %s', cls_name, cls.__feature__)
+                        log.error('Unable to load cog: %s! Required features: %s', cls_name, cls.__feature__)
                         continue
 
-                # Create a cog instance (with config) and add to the bot
+                # Try Config inner class first, then module level config class
                 if hasattr(cls, 'Config'):
+                    config_cls = cls.Config
+                else:
+                    config_cls_name = f"{cls_name}Config"
+                    config_cls = getattr(module, config_cls_name, None)
+
+                if config_cls is not None:
+                    # Create a cog instance (with config) and add to the bot
                     log.info('Load cog with config: %s', cls_name)
-                    if isinstance(args, dict):
-                        instance = cls(self.bot, cls.Config(**args))
+                    if args is None:
+                        instance = cls(self.bot, config_cls())
+                    elif isinstance(args, dict):
+                        instance = cls(self.bot, config_cls(**args))
                     elif isinstance(args, list):
-                        instance = cls(self.bot, cls.Config(*args))
+                        instance = cls(self.bot, config_cls(*args))
                     else:
-                        instance = cls(self.bot, cls.Config(args))
+                        instance = cls(self.bot, config_cls(args))
                 else:
                     log.info('Load cog: %s', cls_name)
                     instance = cls(self.bot)
 
                 self.bot.add_cog(instance)
                 self.cog_list.add(cls_name)
+
+    def _load_cog_module(self, module_name):
+        # Try loading cogs from within the package first
+        try:
+            module_name_internal = f".{module_name}"
+            top_package = __name__.split('.')[0]
+            return import_module(module_name_internal, package=top_package)
+        except ModuleNotFoundError:
+            pass
+
+        return import_module(module_name)
 
     def _check_deprecated_configs(self, config):
         deprecated_keys = config.keys() & self.DEPRECATED_CONFIGS
