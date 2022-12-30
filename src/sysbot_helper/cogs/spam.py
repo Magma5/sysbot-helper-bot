@@ -28,14 +28,14 @@ class BullshitData:
         return list(zip(self.author, self.saying))
 
     @classmethod
-    def from_file(cls, fn='res/spam.yml'):
+    def from_file(cls, fn="res/spam.yml"):
         with open(fn) as f:
             data = safe_load(f)
-        return cls(**{k: v.strip().split('\n') for k, v in data.items()})
+        return cls(**{k: v.strip().split("\n") for k, v in data.items()})
 
 
 class BullshitGenerator:
-    SENTENCE_ENDING = set('.?!')
+    SENTENCE_ENDING = set(".?!")
 
     def __init__(self, data: BullshitData):
         self.data = data
@@ -44,7 +44,12 @@ class BullshitGenerator:
         author, quote = choice(self.data.quotes)
         if random() > 0.3:
             return [author, choice(self.data.quote_1), quote, choice(self.data.suffix)]
-        return [choice(self.data.quote_2), f'{author},', quote, choice(self.data.suffix)]
+        return [
+            choice(self.data.quote_2),
+            f"{author},",
+            quote,
+            choice(self.data.suffix),
+        ]
 
     def sentence(self, theme):
         sentence = []
@@ -65,10 +70,10 @@ class BullshitGenerator:
         for _ in range(length):
             s = self.sentence(theme)
             s[0] = s[0].capitalize()
-            yield ' '.join(s)
+            yield " ".join(s)
 
     def generate_text(self, theme, length):
-        return ' '.join(self.generate_sentence(theme, length))
+        return " ".join(self.generate_sentence(theme, length))
 
 
 class Spam(CogSendError):
@@ -81,17 +86,21 @@ class Spam(CogSendError):
         channel = channel or ctx.channel
         last_update = time()
         if count >= 10:
-            updates = await ctx.send(f'Spamming {channel.name}... Progress: 0/{count}')
+            updates = await ctx.send(f"Spamming {channel.name}... Progress: 0/{count}")
         generator = BullshitGenerator(BullshitData.from_file())
 
         for i in range(count):
             if count >= 10 and time() - last_update > 10:
                 last_update = time()
-                await updates.edit(f'Spamming #{channel.name}... Progress: {i + 1}/{count}')
+                await updates.edit(
+                    f"Spamming #{channel.name}... Progress: {i + 1}/{count}"
+                )
 
-            message = generator.generate_text('sysbot', randint(2, 8))
+            message = generator.generate_text("sysbot", randint(2, 8))
             await channel.send(message.strip())
             await asyncio.sleep(0.5)
 
         if count >= 10:
-            await updates.edit(f'Spamming {channel.name}... Progress: {i + 1}/{count} Done!')
+            await updates.edit(
+                f"Spamming {channel.name}... Progress: {i + 1}/{count} Done!"
+            )

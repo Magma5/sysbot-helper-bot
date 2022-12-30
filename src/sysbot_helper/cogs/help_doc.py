@@ -8,10 +8,10 @@ from .utils import DiscordTextParser
 
 
 class HelpDoc(commands.Cog):
-    '''Interactive paginated help documentation.'''
+    """Interactive paginated help documentation."""
 
     class Config(BaseModel):
-        templates_root = 'templates/docs'
+        templates_root = "templates/docs"
         options_per_menu = 25
 
     def __init__(self, bot, config: Config):
@@ -23,9 +23,9 @@ class HelpDoc(commands.Cog):
         root = base / name
         parser_list = []
         if not root.resolve().is_relative_to(base.resolve()):
-            raise ValueError('Invalid name')
+            raise ValueError("Invalid name")
 
-        for fn in sorted(root.glob('*.md')):
+        for fn in sorted(root.glob("*.md")):
             parser = DiscordTextParser.from_file(fn)
             if not parser.menu_id:
                 continue
@@ -43,7 +43,7 @@ class HelpDoc(commands.Cog):
         for i, doc in enumerate(docs):
             menu_idx = i // self.config.options_per_menu
             if menu_idx >= len(menus):
-                menus.append(ui.Select(custom_id=f'help_doc:menu:{name}::{menu_idx}'))
+                menus.append(ui.Select(custom_id=f"help_doc:menu:{name}::{menu_idx}"))
             select = menus[menu_idx]
 
             match = doc.menu_id == id
@@ -54,9 +54,7 @@ class HelpDoc(commands.Cog):
 
             select.add_option(label=doc.menu_title, value=doc.menu_id, default=match)
 
-        return selected_doc.make_response() | {
-            'view': ui.View(*menus)
-        }
+        return selected_doc.make_response() | {"view": ui.View(*menus)}
 
     async def send_docs(self, ctx, name: str):
         try:
@@ -76,11 +74,11 @@ class HelpDoc(commands.Cog):
         if not interaction.custom_id:
             return
 
-        if not interaction.custom_id.startswith('help_doc:'):
+        if not interaction.custom_id.startswith("help_doc:"):
             return
 
-        args = interaction.custom_id.split(':')[1:]
-        if args[0] == 'menu':
+        args = interaction.custom_id.split(":")[1:]
+        if args[0] == "menu":
             name = args[1]
-            response = self._create_response(name, interaction.data['values'][0])
+            response = self._create_response(name, interaction.data["values"][0])
             await interaction.response.edit_message(**response)

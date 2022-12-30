@@ -30,13 +30,15 @@ class ReactMatcher:
             return False
 
         for attachment in message.attachments:
-            if attachment.content_type and self._re_match(pattern, attachment.content_type):
+            if attachment.content_type and self._re_match(
+                pattern, attachment.content_type
+            ):
                 return True
         return False
 
     async def media(self, message: Message):
         """Check if the message contains an image or video (attachments or embeds)"""
-        content_type_pattern = re.compile(r'^(image|video)/', re.IGNORECASE)
+        content_type_pattern = re.compile(r"^(image|video)/", re.IGNORECASE)
         if await self.content_type(message, content_type_pattern):
             return True
 
@@ -76,7 +78,7 @@ class ReactMatcher:
     async def has_permission(self, message: Message, permission):
         perm = message.author.guild_permissions
         if permission not in perm.VALID_FLAGS:
-            raise ValueError(f'{permission} is not a valid permission!')
+            raise ValueError(f"{permission} is not a valid permission!")
         return getattr(perm, permission) is not False
 
     async def channel(self, message: Message, channel_id: int):
@@ -126,23 +128,21 @@ class ReactMatcher:
 class ReactConfig:
     def __init__(self, **kwargs):
         # General configs
-        self.embeds_check_delay = kwargs.pop('embeds_check_delay', 1.5)
+        self.embeds_check_delay = kwargs.pop("embeds_check_delay", 1.5)
 
         # Define default rules
-        self.rules = {
-            'bot': False
-        }
+        self.rules = {"bot": False}
 
         # Populate rules dict by checking the keys
         for k in list(kwargs.keys()):
             k_ = k.lower()
-            if k.endswith('!'):
+            if k.endswith("!"):
                 k_ = k[:-1]
-            if k_ == 'match' or hasattr(ReactMatcher, k_):
+            if k_ == "match" or hasattr(ReactMatcher, k_):
                 self.rules[k] = kwargs.pop(k)
 
         # The remaining keys are all actions
-        self.actions = ensure_list(kwargs.pop('actions', dict()))
+        self.actions = ensure_list(kwargs.pop("actions", dict()))
         self.actions.insert(0, dict(**kwargs))
 
     async def match_helper_bool(self, fn, message, expected):
@@ -159,16 +159,17 @@ class ReactConfig:
                 coro = self.match_item(matcher, name, message, *args)
                 tasks.append(asyncio.create_task(coro))
             return await wait_tasks_all(tasks)
+
         return run_match_match
 
     async def match_item(self, matcher, name, message, *args):
         # Check if operation is inverted
         inverted = False
-        if name.endswith('!'):
+        if name.endswith("!"):
             inverted = True
             name = name[:-1]
 
-        if name == 'match':
+        if name == "match":
             fn = self.get_match_helper_rules(matcher)
         else:
             fn = getattr(matcher, name)
@@ -190,7 +191,7 @@ class ReactConfig:
 
     async def check_match(self, bot, message: Message):
         matcher = ReactMatcher(bot)
-        if await self.match_item(matcher, 'match', message, self.rules):
+        if await self.match_item(matcher, "match", message, self.rules):
             return matcher
 
     async def do_actions(self, ctx, matcher):
@@ -231,5 +232,9 @@ class Autoreact(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        await asyncio.gather(*(self.do_auto_react(message, config)
-                               for config in self.config.react_configs))
+        await asyncio.gather(
+            *(
+                self.do_auto_react(message, config)
+                for config in self.config.react_configs
+            )
+        )

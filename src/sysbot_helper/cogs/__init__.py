@@ -6,7 +6,7 @@ from discord.errors import ApplicationCommandInvokeError
 class CogSendError(commands.Cog):
     async def cog_command_error(self, ctx, error):
         if isinstance(error, CheckFailure):
-            if hasattr(ctx, 'respond'):
+            if hasattr(ctx, "respond"):
                 await ctx.respond(f"Failed: {str(error)}")
             else:
                 await ctx.send(f"Failed: {str(error)}")

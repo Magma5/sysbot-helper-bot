@@ -43,31 +43,45 @@ class Sysbot(commands.Cog):
         raise error
 
     async def connect(self):
-        self.reader, self.writer = await asyncio.open_connection(self.config.ip, self.config.port)
+        self.reader, self.writer = await asyncio.open_connection(
+            self.config.ip, self.config.port
+        )
 
     async def send_command(self, *args):
-        logging.info('Send switch command: %s', repr(args))
-        cmd = ' '.join(args) + '\r\n'
-        self.writer.write(cmd.encode('utf-8'))
+        logging.info("Send switch command: %s", repr(args))
+        cmd = " ".join(args) + "\r\n"
+        self.writer.write(cmd.encode("utf-8"))
         await self.writer.drain()
 
     @slash_command()
     @commands.is_owner()
-    async def screen(self, ctx,
-                     action: Option(str, "Action for screen, on or off", choices=['on', 'off'], required=True),
-                     delay: Option(int, "Number of seconds to wait before running the command", default=0, required=False)):
+    async def screen(
+        self,
+        ctx,
+        action: Option(
+            str, "Action for screen, on or off", choices=["on", "off"], required=True
+        ),
+        delay: Option(
+            int,
+            "Number of seconds to wait before running the command",
+            default=0,
+            required=False,
+        ),
+    ):
         # Check if command needs schedule
         if delay > 0:
-            await ctx.respond(f'Screen command is scheduled to run after {delay} seconds.')
+            await ctx.respond(
+                f"Screen command is scheduled to run after {delay} seconds."
+            )
             await asyncio.sleep(delay)
         else:
-            await ctx.respond('Screen command will run shortly.')
+            await ctx.respond("Screen command will run shortly.")
             await asyncio.sleep(1)
 
         # Send the command
-        command = 'screen' + action.capitalize()
+        command = "screen" + action.capitalize()
         await self.send_command(command)
-        await ctx.send(f'Your screen has been turned {action}.')
+        await ctx.send(f"Your screen has been turned {action}.")
 
     @slash_command()
     @commands.is_owner()
@@ -80,11 +94,11 @@ class Sysbot(commands.Cog):
             screen = sct.grab(monitor)
 
         # Create raw PIL object
-        img = Image.frombytes('RGB', screen.size, screen.bgra, "raw", "BGRX")
+        img = Image.frombytes("RGB", screen.size, screen.bgra, "raw", "BGRX")
 
         # Save as JPG
         data = BytesIO()
-        img.save(data, format='jpeg', quality=60)
+        img.save(data, format="jpeg", quality=60)
 
         # Send data to discord
         data.seek(0)

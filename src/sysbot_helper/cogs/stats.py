@@ -9,7 +9,6 @@ log = logging.getLogger(__name__)
 
 
 class Stats(commands.Cog):
-
     class Config(BaseModel):
         channels: dict[int, str]
 
@@ -17,7 +16,7 @@ class Stats(commands.Cog):
         self.bot = bot
         self.config = config
 
-    @scheduled('*/15 * * * *')
+    @scheduled("*/15 * * * *")
     async def run_update(self):
         for channel_id, channel_template in self.config.channels.items():
             channel = self.bot.get_channel(channel_id)
@@ -32,9 +31,9 @@ class Stats(commands.Cog):
             if channel.name == text:
                 continue
 
-            log.info('%s %s -> %s', guild.name, channel.name, text)
+            log.info("%s %s -> %s", guild.name, channel.name, text)
 
             try:
                 await asyncio.wait_for(channel.edit(name=text), timeout=3)
             except asyncio.exceptions.TimeoutError as e:
-                log.error('%s timeout: %s %s', guild.name, e, channel.name)
+                log.error("%s timeout: %s %s", guild.name, e, channel.name)

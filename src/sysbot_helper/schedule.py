@@ -12,6 +12,7 @@ def scheduled(*args, **kwargs):
     def decorator(func):
         task = ScheduledTask(*args, callback=func, **kwargs)
         return task
+
     return decorator
 
 

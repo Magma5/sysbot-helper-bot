@@ -13,21 +13,21 @@ class DiscordMessage:
 
     def update(self, args):
         if isinstance(args, str):
-            self.message['content'] = args
+            self.message["content"] = args
         else:
             self.message.update(args)
 
     def add_file(self, fp, filename):
-        if 'files' not in self.message:
-            self.message['files'] = []
+        if "files" not in self.message:
+            self.message["files"] = []
         file = File(fp, filename=filename)
-        self.message['files'].append(file)
+        self.message["files"].append(file)
 
     async def send(self, ctx, variables):
         message = self.get_send(ctx.bot, variables)
 
         # Specify the channel to send to
-        _channel = message.pop('channel', None)
+        _channel = message.pop("channel", None)
         if _channel:
             channel = ctx.bot.get_channel(_channel)
         else:
@@ -40,9 +40,9 @@ class DiscordMessage:
         message = dict(self.message)
 
         # Render templates
-        content = message.get('content', None)
+        content = message.get("content", None)
         if content:
-            message['content'] = env.from_string(content).render(variables)
+            message["content"] = env.from_string(content).render(variables)
 
         return message
 
@@ -54,7 +54,9 @@ class DiscordMessage:
         if sticker:
             sticker_file = await bot.download(sticker)
             if sticker.is_animated:
-                discord_msg.add_file(sticker_file, "{}.gz".format(sticker.file_unique_id))
+                discord_msg.add_file(
+                    sticker_file, "{}.gz".format(sticker.file_unique_id)
+                )
             else:
                 img = Image.open(sticker_file)
                 img.thumbnail((160, 160), Image.ANTIALIAS)
@@ -82,7 +84,9 @@ class DiscordMessage:
         video_note = message.video_note
         if video_note:
             video_note_file = await bot.download(video_note)
-            discord_msg.add_file(video_note_file, "{}.mp4".format(video_note.file_unique_id))
+            discord_msg.add_file(
+                video_note_file, "{}.mp4".format(video_note.file_unique_id)
+            )
 
         voice = message.voice
         if voice:
@@ -110,7 +114,7 @@ class DiscordAction:
 
     async def reply(self, text):
         discord_msg = DiscordMessage(text)
-        discord_msg.update({'reference': self.ctx.message})
+        discord_msg.update({"reference": self.ctx.message})
         msg = await discord_msg.send(self.ctx, self.variables)
         self.sent_messages.append(msg)
 

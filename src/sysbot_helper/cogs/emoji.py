@@ -9,7 +9,7 @@ class Emoji(commands.Cog):
     @commands.command()
     async def emoji(self, ctx):
         content = []
-        for emo in re.findall('<:[a-zA-Z0-9_]+:[0-9]+>', ctx.message.content):
+        for emo in re.findall("<:[a-zA-Z0-9_]+:[0-9]+>", ctx.message.content):
             content.append(f"{emo} `{emo}`")
         if content:
-            await ctx.send('\n'.join(content))
+            await ctx.send("\n".join(content))

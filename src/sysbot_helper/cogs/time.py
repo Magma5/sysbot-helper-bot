@@ -15,7 +15,7 @@ class Time(commands.Cog):
         self.config = config
 
     def server_now(self, ctx) -> datetime:
-        tz = self.bot.guild_config(ctx.guild).get('timezone', self.config.timezone)
+        tz = self.bot.guild_config(ctx.guild).get("timezone", self.config.timezone)
         zone = ZoneInfo(tz)
         return datetime.now(zone)
 
@@ -24,12 +24,9 @@ class Time(commands.Cog):
         return datetime.now(zone)
 
     def template_variables(self, ctx):
-        result = {
-            'now': self.server_now(ctx),
-            'utcnow': datetime.now(timezone.utc)
-        }
+        result = {"now": self.server_now(ctx), "utcnow": datetime.now(timezone.utc)}
 
         for name, tz in self.config.extras.items():
-            result[f'now_{name}'] = datetime.now(ZoneInfo(tz))
+            result[f"now_{name}"] = datetime.now(ZoneInfo(tz))
 
         return result

@@ -21,7 +21,11 @@ class Hex(commands.Cog):
             except ValueError:
                 errors.append(num)
 
-        await ctx.send('\n'.join(chain(
-            ("0x%x = %d" % (value, value) for value in values),
-            (f'Invalid hex number "{num}"' for num in errors)
-        )))
+        await ctx.send(
+            "\n".join(
+                chain(
+                    ("0x%x = %d" % (value, value) for value in values),
+                    (f'Invalid hex number "{num}"' for num in errors),
+                )
+            )
+        )

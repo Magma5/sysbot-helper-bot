@@ -26,7 +26,9 @@ class ChatLink(BaseModel):
     channel: int
     chat: int
     discord_message: str = '**{{ message.from_user.first_name or "" }} {{ message.from_user.last_name or "" }}**: {{ text }}'
-    telegram_message: str = '<b>{{ message.author.name }}</b>: {{message.clean_content | e}}'
+    telegram_message: str = (
+        "<b>{{ message.author.name }}</b>: {{message.clean_content | e}}"
+    )
 
 
 class Telegram(commands.Cog):
@@ -44,7 +46,7 @@ class Telegram(commands.Cog):
 
         # A list of Telegram bots (aiogram.Bot) to poll for updates
         self.bots = {
-            name: aiogram.Bot(token, session=self.session, parse_mode='HTML')
+            name: aiogram.Bot(token, session=self.session, parse_mode="HTML")
             for name, token in config.bots.items()
         }
 
@@ -52,13 +54,20 @@ class Telegram(commands.Cog):
         self.telegram_chats = {link.chat: link for link in config.chat_link}
         self.discord_channels = {link.channel: link for link in config.chat_link}
 
-    async def add_message_mapping(self, discord_message: Message, telegram_message: TelegramMessage, discord_attachment: Optional[Attachment] = None):
+    async def add_message_mapping(
+        self,
+        discord_message: Message,
+        telegram_message: TelegramMessage,
+        discord_attachment: Optional[Attachment] = None,
+    ):
         """Save a message mapping to the database, given the message objects."""
 
-        mapping = TelegramMapping(telegram_chat=telegram_message.chat.id,
-                                  telegram_message=telegram_message.message_id,
-                                  discord_channel=discord_message.channel.id,
-                                  discord_message=discord_message.id)
+        mapping = TelegramMapping(
+            telegram_chat=telegram_message.chat.id,
+            telegram_message=telegram_message.message_id,
+            discord_channel=discord_message.channel.id,
+            discord_message=discord_message.id,
+        )
         if discord_attachment:
             mapping.discord_attachment = discord_attachment.id
 
@@ -67,7 +76,9 @@ class Telegram(commands.Cog):
             session.add(mapping)
             await session.commit()
 
-    async def get_by_discord(self, message: Union[Message, MessageReference]) -> Optional[int]:
+    async def get_by_discord(
+        self, message: Union[Message, MessageReference]
+    ) -> Optional[int]:
         """Retrieve the telegram message ID (None if not found) by discord message."""
 
         if message is None:
@@ -78,7 +89,10 @@ class Telegram(commands.Cog):
         else:
             id = message.id
 
-        stmt = select(TelegramMapping).where(TelegramMapping.discord_message == id, TelegramMapping.discord_attachment.is_(None))
+        stmt = select(TelegramMapping).where(
+            TelegramMapping.discord_message == id,
+            TelegramMapping.discord_attachment.is_(None),
+        )
 
         async with self.bot.Session() as sess:
             rows = await sess.execute(stmt)
@@ -90,7 +104,9 @@ class Telegram(commands.Cog):
     async def get_all_by_discord(self, *message: Message) -> list[int]:
         """Retrieve the telegram message IDs given a list of discord messages."""
 
-        stmt = select(TelegramMapping).where(TelegramMapping.discord_message.in_([msg.id for msg in message]))
+        stmt = select(TelegramMapping).where(
+            TelegramMapping.discord_message.in_([msg.id for msg in message])
+        )
 
         async with self.bot.Session() as sess:
             rows = await sess.execute(stmt)
@@ -102,7 +118,10 @@ class Telegram(commands.Cog):
         if message is None:
             return
 
-        stmt = select(TelegramMapping).where(TelegramMapping.telegram_chat == message.chat.id, TelegramMapping.telegram_message == message.message_id)
+        stmt = select(TelegramMapping).where(
+            TelegramMapping.telegram_chat == message.chat.id,
+            TelegramMapping.telegram_message == message.message_id,
+        )
 
         async with self.bot.Session() as sess:
             rows = await sess.execute(stmt)
@@ -112,7 +131,10 @@ class Telegram(commands.Cog):
             return result.TelegramMapping.discord_message
 
     def should_handle_discord(self, message: Message):
-        return message.author != self.bot.user and message.channel.id in self.discord_channels
+        return (
+            message.author != self.bot.user
+            and message.channel.id in self.discord_channels
+        )
 
     def should_handle_telegram(self, message: TelegramMessage):
         return message.chat.id in self.telegram_chats
@@ -132,10 +154,20 @@ class Telegram(commands.Cog):
             return
 
         chat_link = self.discord_channels[message.channel.id]
-        text = self.bot.template_env.from_string(chat_link.telegram_message).render(message=message) or '(Empty message)'
+        text = (
+            self.bot.template_env.from_string(chat_link.telegram_message).render(
+                message=message
+            )
+            or "(Empty message)"
+        )
 
         ref_id = await self.get_by_discord(message.reference)
-        msg = await self.bots[chat_link.bot].send_message(chat_link.chat, disable_web_page_preview=True, text=text, reply_to_message_id=ref_id)
+        msg = await self.bots[chat_link.bot].send_message(
+            chat_link.chat,
+            disable_web_page_preview=True,
+            text=text,
+            reply_to_message_id=ref_id,
+        )
 
         await self.add_message_mapping(message, msg)
 
@@ -143,7 +175,9 @@ class Telegram(commands.Cog):
         for attachment in message.attachments:
             data = await attachment.read()
             telegram_document = BufferedInputFile(data, attachment.filename)
-            doc_msg = await self.bots[chat_link.bot].send_document(chat_link.chat, telegram_document, reply_to_message_id=msg.message_id)
+            doc_msg = await self.bots[chat_link.bot].send_document(
+                chat_link.chat, telegram_document, reply_to_message_id=msg.message_id
+            )
             await self.add_message_mapping(message, doc_msg, attachment)
 
     @commands.Cog.listener()
@@ -156,12 +190,18 @@ class Telegram(commands.Cog):
             return
 
         chat_link = self.discord_channels[after.channel.id]
-        text = self.bot.template_env.from_string(chat_link.telegram_message).render(message=after) or '(Empty message)'
+        text = (
+            self.bot.template_env.from_string(chat_link.telegram_message).render(
+                message=after
+            )
+            or "(Empty message)"
+        )
 
         telegram_id = await self.get_by_discord(after)
         if telegram_id:
-            await self.bots[chat_link.bot].edit_message_text(text, chat_link.chat, telegram_id,
-                                                             disable_web_page_preview=True)
+            await self.bots[chat_link.bot].edit_message_text(
+                text, chat_link.chat, telegram_id, disable_web_page_preview=True
+            )
 
     @commands.Cog.listener()
     async def on_message_delete(self, message: Message):
@@ -204,12 +244,11 @@ class Telegram(commands.Cog):
         # Check for reply
         discord_ref = await self.get_by_telegram(message.reply_to_message)
         if discord_ref:
-            discord_msg.update({'reference': channel.get_partial_message(discord_ref)})
+            discord_msg.update({"reference": channel.get_partial_message(discord_ref)})
 
-        msg = discord_msg.get_send(self.bot, {
-            'message': message,
-            'text': unparse_entities(message)
-        })
+        msg = discord_msg.get_send(
+            self.bot, {"message": message, "text": unparse_entities(message)}
+        )
 
         # Forward the message
         resp = await channel.send(**msg)
@@ -232,9 +271,7 @@ class Telegram(commands.Cog):
         discord_msg = await DiscordMessage.from_telegram(bot, message)
         discord_msg.update(chat_link.discord_message)
 
-        msg = discord_msg.get_send(self.bot, {
-            'message': message
-        })
+        msg = discord_msg.get_send(self.bot, {"message": message})
 
         existing_id = await self.get_by_telegram(message)
         if existing_id:

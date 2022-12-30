@@ -19,7 +19,7 @@ def serialize_sets(obj):
 
 
 class Groups:
-    ALL_GROUP = 'all'
+    ALL_GROUP = "all"
 
     def __init__(self, config={}, save_file=None):
         self.group_names: dict[str, int] = {}
@@ -39,8 +39,8 @@ class Groups:
         self.save_file = fn
 
     def write_save_file(self):
-        if getattr(self, 'save_file', None):
-            with open(self.save_file, 'w') as f:
+        if getattr(self, "save_file", None):
+            with open(self.save_file, "w") as f:
                 json.dump(self.saved_groups, f, indent=2, default=serialize_sets)
 
     def add_member_save(self, name, *member_ids):

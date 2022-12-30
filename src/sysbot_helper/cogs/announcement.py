@@ -14,16 +14,16 @@ class Announcement(CogSendError):
 
         parser = DiscordTextParser(template.render(**kwargs))
         resp = parser.make_response(
-            color=channel.guild.get_member(
-                ctx.bot.user.id).color)
+            color=channel.guild.get_member(ctx.bot.user.id).color
+        )
         await channel.send(**resp)
 
     @slash_command()
     @is_sudo()
     async def announce(self, ctx, message: str):
-        admin = self.bot.get_cog('Admin')
+        admin = self.bot.get_cog("Admin")
         if not admin:
-            return await ctx.respond('Admin cog is not loaded!')
+            return await ctx.respond("Admin cog is not loaded!")
 
         await ctx.respond((f"Father, I will announce for you:\n\n{message}"))
         for channel in admin.bot_channels(ctx):

@@ -11,7 +11,7 @@ def apply_obj_data(obj: Any, data: dict):
             continue
 
         # Filter calls to private methods
-        if key.startswith('_'):
+        if key.startswith("_"):
             continue
 
         method = getattr(obj, key)
@@ -26,10 +26,9 @@ def apply_obj_data(obj: Any, data: dict):
 
 
 def embed_from_dict(data_raw):
-    data = {k: v for k, v in data_raw.items()
-            if v is not None}
+    data = {k: v for k, v in data_raw.items() if v is not None}
 
-    if 'timestamp' in data:
-        data['timestamp'] = iso8601.parse_date(data['timestamp']).isoformat()
+    if "timestamp" in data:
+        data["timestamp"] = iso8601.parse_date(data["timestamp"]).isoformat()
 
     return Embed.from_dict(data)

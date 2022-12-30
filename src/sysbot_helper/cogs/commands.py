@@ -17,7 +17,7 @@ class Commands(commands.Cog):
     class Config(BaseModel):
         text: dict[str, str] = {}
         load_files: list[str] = []
-        root_dir: str = 'templates'
+        root_dir: str = "templates"
 
         @property
         def root_path(self):
@@ -55,25 +55,29 @@ class Commands(commands.Cog):
             # Send either normal message or embed
             return DiscordTextParser.convert_to_response(rendered)
 
-        aliases_option = command_options.get('aliases', [])
+        aliases_option = command_options.get("aliases", [])
 
         # Register aliases too
-        aliases_name = name.split(',') + aliases_option
+        aliases_name = name.split(",") + aliases_option
 
-        log.info('Register command name=%s', aliases_name)
+        log.info("Register command name=%s", aliases_name)
         command_list = []
 
         for name in aliases_name:
             name = name.strip()
             if len(name) <= 0:
                 continue
-            elif name[0] in '/_':
+            elif name[0] in "/_":
+
                 async def callback(self, ctx):
                     await ctx.respond(**get_response(ctx))
+
                 cmd = SlashCommand(callback, name=name[1:], **command_options)
             else:
+
                 async def callback(self, ctx):
                     await ctx.send(**get_response(ctx))
+
                 cmd = Command(callback, name=name, **command_options)
             command_list.append(cmd)
 

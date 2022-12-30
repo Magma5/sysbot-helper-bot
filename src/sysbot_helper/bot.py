@@ -20,11 +20,11 @@ log = logging.getLogger(__name__)
 
 class Bot(Base):
     def __init__(self, config):
-        bot_args = config.pop('bot', {})
+        bot_args = config.pop("bot", {})
 
         # Set intents from config
         intents = Intents.all()
-        intents_config = bot_args.pop('intents', {})
+        intents_config = bot_args.pop("intents", {})
         if intents_config:
             intents = Intents.default()
             for k, v in intents_config.items():
@@ -33,44 +33,43 @@ class Bot(Base):
         super().__init__(**bot_args, intents=intents)
 
         self.helper = ConfigHelper(self, config)
-        self.template_env = Environment(
-            loader=FileSystemLoader("templates"))
+        self.template_env = Environment(loader=FileSystemLoader("templates"))
         self.features = set()
         self.scheduled_tasks_timeout = 300
         self.bg_tasks = set()
 
     def guild_config(self, guild):
-        return self.helper.get_config('guild', guild.id)
+        return self.helper.get_config("guild", guild.id)
 
     def channel_config(self, channel):
-        return self.helper.get_config('channel', channel.id)
+        return self.helper.get_config("channel", channel.id)
 
     def user_config(self, user):
-        return self.helper.get_config('user', user.id)
+        return self.helper.get_config("user", user.id)
 
     @property
     def groups(self):
         return self.helper.groups
 
     def get_channels_in_group(self, *name):
-        yield from filter(None,
-                          map(self.get_channel, self.groups.get_members(*name)))
+        yield from filter(None, map(self.get_channel, self.groups.get_members(*name)))
 
     def now(self):
-        time_cog = self.get_cog('Time')
+        time_cog = self.get_cog("Time")
         if time_cog:
             return time_cog.now()
         return datetime.now()
 
     def set_database(self, database_url: str):
-        """Initialize database session if needed. """
+        """Initialize database session if needed."""
         if database_url is None:
             return
         from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
         from sqlalchemy.orm import sessionmaker
+
         engine = create_async_engine(database_url)
         self.Session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-        self.features.add('database')
+        self.features.add("database")
 
     def template_variables(self, ctx):
         """Search through all registered cogs and load variables"""
@@ -78,15 +77,13 @@ class Bot(Base):
         # Generate a fake context without the message object
         if isinstance(ctx, GuildChannel):
             ctx = SimpleNamespace(
-                bot=self,
-                guild=ctx.guild,
-                channel=ctx,
-                author=self.user)
+                bot=self, guild=ctx.guild, channel=ctx, author=self.user
+            )
 
         result = self.helper.template_variables_base(ctx)
         for cog in self.cogs.values():
-            if hasattr(cog, 'template_variables'):
-                fn = getattr(cog, 'template_variables')
+            if hasattr(cog, "template_variables"):
+                fn = getattr(cog, "template_variables")
                 result.update(fn(ctx))
         return result
 
@@ -106,8 +103,9 @@ class Bot(Base):
     async def loop_scheduled_tasks(self):
         sleep_sec = 60 - time.time() % 60
         await asyncio.sleep(sleep_sec)
-        task = asyncio.create_task(self.invoke_scheduled_tasks()) \
-            .add_done_callback(self.bg_tasks.discard)
+        task = asyncio.create_task(self.invoke_scheduled_tasks()).add_done_callback(
+            self.bg_tasks.discard
+        )
         self.bg_tasks.add(task)
 
     async def invoke_scheduled_tasks(self, on_ready=False):
@@ -118,8 +116,12 @@ class Bot(Base):
             for method in cog.__class__.__dict__.values():
                 if type(method) is not ScheduledTask:
                     continue
-                tasks.append(asyncio.wait_for(
-                    method.try_invoke(cog, now, on_ready), self.scheduled_tasks_timeout))
+                tasks.append(
+                    asyncio.wait_for(
+                        method.try_invoke(cog, now, on_ready),
+                        self.scheduled_tasks_timeout,
+                    )
+                )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for result in results:
@@ -140,7 +142,9 @@ class Bot(Base):
         self.context_attach_attributes(ctx)
         return ctx
 
-    async def get_application_context(self, interaction: Interaction, cls=ApplicationContext):
+    async def get_application_context(
+        self, interaction: Interaction, cls=ApplicationContext
+    ):
         ctx = await super().get_application_context(interaction, cls=cls)
         self.context_attach_attributes(ctx)
         return ctx

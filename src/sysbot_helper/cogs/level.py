@@ -21,7 +21,7 @@ async def get_user(ctx, session: AsyncSession):
 
 
 class Level(commands.Cog):
-    __feature__ = ['database']
+    __feature__ = ["database"]
 
     @dataclass
     class Config:
@@ -38,12 +38,16 @@ class Level(commands.Cog):
     @commands.command()
     async def top(self, ctx):
         async with self.bot.Session.begin() as session:
-            rows = await session.execute(select(Experience, User)
-                                         .join(User, Experience.user_id == User.user_id)
-                                         .where(Experience.guild_id == ctx.guild.id)
-                                         .order_by(Experience.experience.desc()))
+            rows = await session.execute(
+                select(Experience, User)
+                .join(User, Experience.user_id == User.user_id)
+                .where(Experience.guild_id == ctx.guild.id)
+                .order_by(Experience.experience.desc())
+            )
 
-        await ctx.send('\n'.join(f'({row.User.name}): {row.Experience.experience}' for row in rows))
+        await ctx.send(
+            "\n".join(f"({row.User.name}): {row.Experience.experience}" for row in rows)
+        )
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -53,12 +57,16 @@ class Level(commands.Cog):
         if message.author.bot:
             return
 
-        async with self.lock(message.guild.id, message.author.id), self.bot.Session.begin() as session:
+        async with self.lock(
+            message.guild.id, message.author.id
+        ), self.bot.Session.begin() as session:
             await User.update(message, session)
 
             user = await get_user(message, session)
             user.experience += 1
             if user.experience // 10 > user.level:
                 user.level += 1
-                reward_msg = "GG {}! You are now **level {}**!".format(message.author.name, user.level)
+                reward_msg = "GG {}! You are now **level {}**!".format(
+                    message.author.name, user.level
+                )
                 await message.reply(reward_msg)

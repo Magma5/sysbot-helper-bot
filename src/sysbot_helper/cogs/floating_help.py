@@ -56,7 +56,9 @@ class FloatingHelp(commands.Cog):
 
         # history() returns message from newest to oldest
         async for message in channel.history(limit=self.config.check_message_history):
-            if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
+            if message.author == self.bot.user and message.content.endswith(
+                self.config.magic_space
+            ):
                 yield message
 
     async def refresh_message(self, channel_id):
@@ -88,7 +90,9 @@ class FloatingHelp(commands.Cog):
                     info.message_history.append(msg)
 
             # Try to clean old messages except the last message
-            while info.message_history and info.message_history[-1].id != last_message_id:
+            while (
+                info.message_history and info.message_history[-1].id != last_message_id
+            ):
                 with suppress(HTTPException):
                     await info.message_history.pop().delete()
 
@@ -110,7 +114,7 @@ class FloatingHelp(commands.Cog):
         perms = channel.permissions_for(channel.guild.default_role)
         return self.config.skip_locked_channels and perms.send_messages is False
 
-    @scheduled('* * * * *', seconds='*/10')
+    @scheduled("* * * * *", seconds="*/10")
     async def auto_refresh(self):
         await self._auto_refresh()
 
@@ -138,7 +142,9 @@ class FloatingHelp(commands.Cog):
         if channel.id not in self.channels:
             return
 
-        if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
+        if message.author == self.bot.user and message.content.endswith(
+            self.config.magic_space
+        ):
             return
 
         info = self.channels[channel.id]

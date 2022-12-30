@@ -27,7 +27,9 @@ class Dm(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: Message):
         if message.channel.type != ChannelType.private:
-            if not (self.config.forward_mentions and self.bot.user.mentioned_in(message)):
+            if not (
+                self.config.forward_mentions and self.bot.user.mentioned_in(message)
+            ):
                 return
         if message.channel.id in self.config.channels:
             return
@@ -35,7 +37,7 @@ class Dm(commands.Cog):
             return
 
         channel = self.bot.get_partial_messageable(self.config.channels[0])
-        template = self.bot.template_env.get_template('dm/dm.md')
+        template = self.bot.template_env.get_template("dm/dm.md")
         await channel.send(template.render(message=message, embeds=message.embeds))
 
     @commands.Cog.listener("on_message")
@@ -59,8 +61,16 @@ class Dm(commands.Cog):
                 elif ref.raw_mentions:
                     user_id = ref.raw_mentions[0]
         else:
-            match_user = re.search(r'^(?:@?([0-9]{15,20})|<@!?([0-9]{15,20})>)\s*(.*)', content, flags=re.DOTALL)
-            match_channel = re.search(r'^(?:#([0-9]{15,20})|<#([0-9]{15,20})>)\s*(.*)', content, flags=re.DOTALL)
+            match_user = re.search(
+                r"^(?:@?([0-9]{15,20})|<@!?([0-9]{15,20})>)\s*(.*)",
+                content,
+                flags=re.DOTALL,
+            )
+            match_channel = re.search(
+                r"^(?:#([0-9]{15,20})|<#([0-9]{15,20})>)\s*(.*)",
+                content,
+                flags=re.DOTALL,
+            )
             if match_user:
                 user_id = int(match_user.group(1) or match_user.group(2))
                 content = match_user.group(3)
@@ -72,13 +82,17 @@ class Dm(commands.Cog):
         target = None
         if user_id:
             target = await self.bot.get_or_fetch_user(user_id)
-            respond_reaction = '✅'
+            respond_reaction = "✅"
         elif channel_id:
             target = self.bot.get_partial_messageable(channel_id)
-            respond_reaction = '#️⃣'
+            respond_reaction = "#️⃣"
 
         # Check if they are valid (Cannot send DM to a bot)
-        if not target or (isinstance(target, User) and target.bot) or target.id in self.config.channels:
+        if (
+            not target
+            or (isinstance(target, User) and target.bot)
+            or target.id in self.config.channels
+        ):
             return await message.delete()
 
         try:
@@ -95,9 +109,9 @@ class Dm(commands.Cog):
             await target.send(**response, files=files)
         except HTTPException as e:
             if e.status in (401, 402, 403):
-                await message.add_reaction('❌')
+                await message.add_reaction("❌")
                 for i in str(e.status):
-                    await message.add_reaction(i + '\u20e3')
+                    await message.add_reaction(i + "\u20e3")
             else:
                 return await message.delete()
         except Exception:

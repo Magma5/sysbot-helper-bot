@@ -54,20 +54,17 @@ class Leetcode(commands.Cog):
             self.seen_dates = set()
 
     async def fetch_daily_challenges(self):
-        request = {
-            "query": QUERY_ACTIVE_DAILY_CHALLENGE,
-            "variables": {}
-        }
-        headers = {
-            'content-type': 'application/json'
-        }
+        request = {"query": QUERY_ACTIVE_DAILY_CHALLENGE, "variables": {}}
+        headers = {"content-type": "application/json"}
 
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.post('https://leetcode.com/graphql/', json=request) as response:
+            async with session.post(
+                "https://leetcode.com/graphql/", json=request
+            ) as response:
                 if response.ok:
                     response = await response.json()
-                    challenge = response['data']['activeDailyCodingChallengeQuestion']
-                    date = challenge['date']
+                    challenge = response["data"]["activeDailyCodingChallengeQuestion"]
+                    date = challenge["date"]
 
                     if self.seen_dates is None:
                         self.seen_dates = set()
@@ -77,20 +74,24 @@ class Leetcode(commands.Cog):
                     self.seen_dates.add(date)
 
     async def announce(self, challenge):
-        date = challenge['date']
-        date_obj = datetime.strptime(date, '%Y-%m-%d')
-        weekday = date_obj.strftime('%A')
+        date = challenge["date"]
+        date_obj = datetime.strptime(date, "%Y-%m-%d")
+        weekday = date_obj.strftime("%A")
         link = f"https://leetcode.com{challenge['link']}"
-        frontend_id = challenge['question']['questionFrontendId']
-        title = challenge['question']['title']
-        difficulty = challenge['question']['difficulty']
+        frontend_id = challenge["question"]["questionFrontendId"]
+        title = challenge["question"]["title"]
+        difficulty = challenge["question"]["difficulty"]
 
         for channel in self.config.channels:
             ch = self.bot.get_channel(channel)
-            message = await ch.send(f'**LeetCode Daily Challenge**\nDate: {date}\n#{frontend_id}: **[{difficulty}]** {title}\nLink: {link}')
-            await message.create_thread(name=f'LeetCode {frontend_id} ({weekday})', auto_archive_duration=1440)
+            message = await ch.send(
+                f"**LeetCode Daily Challenge**\nDate: {date}\n#{frontend_id}: **[{difficulty}]** {title}\nLink: {link}"
+            )
+            await message.create_thread(
+                name=f"LeetCode {frontend_id} ({weekday})", auto_archive_duration=1440
+            )
 
-    @scheduled('1-/10 * * * *')
+    @scheduled("1-/10 * * * *")
     async def leetcode_update(self):
         try:
             await self.fetch_daily_challenges()

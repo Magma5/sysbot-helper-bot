@@ -25,13 +25,14 @@ iso8601 = "^1.1.0"
 python-slugify = "^7.0.0"
 markdownify = "^0.11.6"
 
-[tool.poetry.dev-dependencies]
-pytype = "^2022.12.15"
-autopep8 = "^2.0.1"
-flake8 = "^6.0.0"
-
 [tool.poetry.scripts]
 bot = "sysbot_helper:bot_main"
+
+[tool.poetry.group.dev.dependencies]
+autopep8 = "^2.0.1"
+black = "^22.12.0"
+flake8 = "^6.0.0"
+pytype = "^2022.12.15"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
