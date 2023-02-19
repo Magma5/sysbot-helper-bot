@@ -26,7 +26,7 @@ class Ip(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @commands.command()
+    @commands.command(aliases=["ip6"])
     async def ip(self, ctx, count: int = 1):
         count = max(1, count)
         ip = cycle(self.ip6_func)
