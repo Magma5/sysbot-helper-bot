@@ -63,5 +63,4 @@ def bot_main():
     if database_url:
         helper_bot.set_database(database_url)
 
-    helper_bot.helper.register_all_cogs()
     helper_bot.run(token)
