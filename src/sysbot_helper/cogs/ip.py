@@ -1,8 +1,9 @@
+from itertools import cycle
+from secrets import randbits
+
 from discord.ext import commands
 
-from secrets import randbits
-from more_itertools import sliced
-from itertools import cycle
+from sysbot_helper.utils.ip import to_ipv4, to_ipv6
 
 
 class Ip(commands.Cog):
@@ -15,14 +16,6 @@ class Ip(commands.Cog):
     )
     ip6_func = (lambda: randbits(120) | 0xFD << 120,)
 
-    @classmethod
-    def to_ipv6(cls, ip_bits):
-        return ":".join(sliced(hex(ip_bits)[2:], 4))
-
-    @classmethod
-    def to_ipv4(cls, ip_bits):
-        return ".".join(str(0xFF & ip_bits >> i) for i in range(24, -1, -8))
-
     def __init__(self, bot):
         self.bot = bot
 
@@ -31,7 +24,7 @@ class Ip(commands.Cog):
         count = max(1, count)
         ip = cycle(self.ip6_func)
         await ctx.send(
-            "\n".join(map(self.to_ipv6, sorted(next(ip)() for _ in range(count))))
+            "\n".join(map(to_ipv6, sorted(next(ip)() for _ in range(count))))
         )
 
     @commands.command()
@@ -39,5 +32,5 @@ class Ip(commands.Cog):
         count = max(1, count)
         ip = cycle(self.ip4_func)
         await ctx.send(
-            "\n".join(map(self.to_ipv4, sorted(next(ip)() for _ in range(count))))
+            "\n".join(map(to_ipv4, sorted(next(ip)() for _ in range(count))))
         )
