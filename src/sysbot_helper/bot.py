@@ -2,10 +2,14 @@ import asyncio
 import logging
 import time
 import traceback
+from contextlib import suppress
 from datetime import datetime
 from importlib import import_module
+from os import environ
+from pathlib import Path
 from types import SimpleNamespace
 
+import yaml
 from discord import ApplicationContext, Intents, Interaction, Message
 from discord.abc import GuildChannel
 from discord.ext import tasks
@@ -35,18 +39,12 @@ class Bot(Base):
         "user_groups_save",
     }
 
-    def __init__(self, config):
-        bot_args = config.pop("bot", {})
-
-        # Set intents from config
-        intents = Intents.all()
-        intents_config = bot_args.pop("intents", {})
-        if intents_config:
-            intents = Intents.default()
-            for k, v in intents_config.items():
-                setattr(intents, k, v)
-
-        super().__init__(**bot_args, intents=intents)
+    def __init__(self, config_file: Path):
+        # Open and read the config for this bot
+        self.config_file = config_file
+        log.info("Loading config file: %s", config_file)
+        with config_file.open() as f:
+            config = yaml.safe_load(f)
 
         self._check_deprecated_configs(config)
         self.configs = {
@@ -69,6 +67,24 @@ class Bot(Base):
         self.features = set()
         self.scheduled_tasks_timeout = 300
         self.bg_tasks = set()
+
+        # Load database
+        with suppress(KeyError):
+            self.set_database(config.pop("database_url"))
+
+        # Settings up the bot itself
+        self.token = environ.get("TOKEN") or config.pop("token")
+        bot_args = config.pop("bot", {})
+
+        # Set intents from config
+        intents = Intents.all()
+        intents_config = bot_args.pop("intents", {})
+        if intents_config:
+            intents = Intents.default()
+            for k, v in intents_config.items():
+                setattr(intents, k, v)
+
+        super().__init__(**bot_args, intents=intents)
 
         # Register cogs based on configs
         self.register_all_cogs(config)
@@ -275,6 +291,9 @@ class Bot(Base):
     ):
         ctx = await super().get_application_context(interaction, cls=cls)
         return self.context_attach_attributes(ctx)
+
+    async def start(self):
+        await super().start(self.token)
 
     def _load_cog_module(self, module_name):
         # Try loading cogs from within this package first
