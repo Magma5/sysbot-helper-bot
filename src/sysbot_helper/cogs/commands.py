@@ -29,7 +29,6 @@ class Commands(commands.Cog):
         self.load_commands()
 
     def make_text_command(self, name, path=None, text=None):
-
         # Pre-process the command, read special command options
         command_options = {}
 
