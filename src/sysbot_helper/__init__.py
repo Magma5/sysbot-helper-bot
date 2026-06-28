@@ -54,7 +54,16 @@ def run_alembic(config_files: list[Path], alembic_argv):
 
         cmd = CommandLine()
         options = cmd.parser.parse_args(alembic_argv)
-        cfg = Config(file_=options.config, ini_section=options.name, cmd_opts=options)
+
+        config_file_path = options.config
+        if isinstance(config_file_path, list):
+            config_file_path = (
+                config_file_path[0] if config_file_path else "alembic.ini"
+            )
+        elif config_file_path is None:
+            config_file_path = "alembic.ini"
+
+        cfg = Config(file_=config_file_path, ini_section=options.name, cmd_opts=options)
         cfg.set_main_option("sqlalchemy.url", database_url)
         return cmd.run_cmd(cfg, options)
 
