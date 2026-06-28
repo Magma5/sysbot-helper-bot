@@ -1,12 +1,12 @@
-import re
 import asyncio
-from discord.ext.commands import Bot
-from discord.ext import commands
-
+import re
 from dataclasses import dataclass
+
+from discord.ext import commands
+from discord.ext.commands import Bot
 from discord.message import Message
 
-from .utils import wait_tasks_any, wait_tasks_all, DiscordAction, ensure_list
+from .utils import DiscordAction, ensure_list, wait_tasks_all, wait_tasks_any
 
 
 @dataclass

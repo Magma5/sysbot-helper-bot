@@ -1,9 +1,9 @@
 import json
-from os.path import exists
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from typing import Any
 from itertools import chain
+from os.path import exists
+from typing import Any
 
 
 @dataclass

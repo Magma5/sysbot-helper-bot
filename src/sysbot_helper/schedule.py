@@ -1,7 +1,7 @@
+import asyncio
 from datetime import datetime
 from time import time
 from typing import Any
-import asyncio
 
 from .cron import CronExpression, CronItem
 

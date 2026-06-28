@@ -73,7 +73,8 @@ class Bot(Base):
             self.set_database(config.pop("database_url"))
 
         # Settings up the bot itself
-        self.token = environ.get("TOKEN") or config.pop("token")
+        config_token = config.pop("token", None)
+        self.token = environ.get("TOKEN") or config_token
         bot_args = config.pop("bot", {})
 
         # Set intents from config
@@ -114,7 +115,7 @@ class Bot(Base):
         if not self.motd:
             return
         try:
-            with open(self.motd, "r") as f:
+            with open(self.motd) as f:
                 return f.read().strip()
         except FileNotFoundError:
             log.info(f"{self.motd} not found, will not print MOTD.")

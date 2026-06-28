@@ -1,12 +1,12 @@
 # Credit: https://github.com/menzi11/BullshitGenerator/pull/25/files
-from yaml import safe_load
-from random import choice, random
-from dataclasses import dataclass
-from discord.ext import commands
-from discord import TextChannel
-from time import time
-from random import randint
 import asyncio
+from dataclasses import dataclass
+from random import choice, randint, random
+from time import time
+
+from discord import TextChannel
+from discord.ext import commands
+from yaml import safe_load
 
 from . import CogSendError
 

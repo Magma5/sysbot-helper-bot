@@ -1,7 +1,8 @@
+import asyncio
 from io import BytesIO
+
 from discord import File
 from discord.ext.commands import Context
-import asyncio
 from PIL import Image
 
 
@@ -55,7 +56,7 @@ class DiscordMessage:
             sticker_file = await bot.download(sticker)
             if sticker.is_animated:
                 discord_msg.add_file(
-                    sticker_file, "{}.gz".format(sticker.file_unique_id)
+                    sticker_file, f"{sticker.file_unique_id}.gz"
                 )
             else:
                 img = Image.open(sticker_file)
@@ -63,7 +64,7 @@ class DiscordMessage:
                 thumb = BytesIO()
                 img.save(thumb, "webp")
                 thumb.seek(0)
-                discord_msg.add_file(thumb, "{}.webp".format(sticker.file_unique_id))
+                discord_msg.add_file(thumb, f"{sticker.file_unique_id}.webp")
 
         document = message.document
         if document:
@@ -74,7 +75,7 @@ class DiscordMessage:
         if photo:
             best_photo = max(photo, key=lambda x: x.width * x.height)
             photo_file = await bot.download(best_photo)
-            discord_msg.add_file(photo_file, "{}.jpg".format(best_photo.file_unique_id))
+            discord_msg.add_file(photo_file, f"{best_photo.file_unique_id}.jpg")
 
         video = message.video
         if video:
@@ -85,13 +86,13 @@ class DiscordMessage:
         if video_note:
             video_note_file = await bot.download(video_note)
             discord_msg.add_file(
-                video_note_file, "{}.mp4".format(video_note.file_unique_id)
+                video_note_file, f"{video_note.file_unique_id}.mp4"
             )
 
         voice = message.voice
         if voice:
             voice_file = await bot.download(voice)
-            discord_msg.add_file(voice_file, "{}.ogg".format(voice.file_unique_id))
+            discord_msg.add_file(voice_file, f"{voice.file_unique_id}.ogg")
 
         return discord_msg
 

@@ -1,5 +1,6 @@
+from sqlalchemy import BigInteger, Column, DateTime, Integer, func
+
 from . import Base
-from sqlalchemy import Column, BigInteger, DateTime, Integer, func
 
 
 class TelegramMapping(Base):

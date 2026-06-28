@@ -1,5 +1,6 @@
-from discord.ext import commands
 from itertools import chain
+
+from discord.ext import commands
 
 
 class Hex(commands.Cog):

@@ -8,30 +8,28 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
-Jinja2 = "^3.1.2"
-Pillow = "^9.3.0"
-PyYAML = "^6.0"
-mss = "^7.0.1"
-more-itertools = "^9.1.0"
-py-cord = "2.4.0"
-pydantic = "^1.10.6"
-aiogram = "3.0.0b7"
-SQLAlchemy = {extras = ["asyncio"], version = "^2.0.5.post1"}
-alembic = "^1.10.2"
-asyncpg = "^0.27.0"
-python-frontmatter = "^1.0.0"
-iso8601 = "^1.1.0"
-python-slugify = "^8.0.1"
-markdownify = "^0.11.6"
+python = ">=3.10,<3.15"
+Jinja2 = "^3.1.4"
+Pillow = "^11.0.0"
+PyYAML = "^6.0.2"
+mss = "^9.0.1"
+more-itertools = "^10.2.0"
+py-cord = "^2.6.1"
+pydantic = "^2.7.4"
+aiogram = "^3.10.0"
+SQLAlchemy = {extras = ["asyncio"], version = "^2.0.31"}
+alembic = "^1.14.0"
+asyncpg = "^0.31.0"
+python-frontmatter = "^1.1.0"
+iso8601 = "^2.1.0"
+python-slugify = "^8.0.4"
+markdownify = "^0.13.1"
 
 [tool.poetry.scripts]
 bot = "sysbot_helper:bot_main"
 
 [tool.poetry.group.dev.dependencies]
-autopep8 = "^2.0.1"
-black = "^23.1.0"
-flake8 = "^6.0.0"
+ruff = "^0.4.8"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

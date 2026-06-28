@@ -1,9 +1,10 @@
-from datetime import datetime
 import traceback
-from discord.ext import commands
-import aiohttp
+from datetime import datetime
 
+import aiohttp
+from discord.ext import commands
 from pydantic import BaseModel
+
 from sysbot_helper import scheduled
 
 QUERY_DAILY_CHALLENGE_RECORDS = """

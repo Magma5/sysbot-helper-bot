@@ -1,7 +1,7 @@
 import re
 from io import BytesIO
 
-from discord import File, User, ChannelType, HTTPException, Message
+from discord import ChannelType, File, HTTPException, Message, User
 from discord.ext import commands
 from pydantic import BaseModel
 

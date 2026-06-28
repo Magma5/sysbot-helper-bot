@@ -66,7 +66,5 @@ class Level(commands.Cog):
             user.experience += 1
             if user.experience // 10 > user.level:
                 user.level += 1
-                reward_msg = "GG {}! You are now **level {}**!".format(
-                    message.author.name, user.level
-                )
+                reward_msg = f"GG {message.author.name}! You are now **level {user.level}**!"
                 await message.reply(reward_msg)

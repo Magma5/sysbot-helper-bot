@@ -1,8 +1,9 @@
-from discord.ext import commands
-from struct import Struct
-from random import Random
-from datetime import datetime, timezone
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from random import Random
+from struct import Struct
+
+from discord.ext import commands
 
 
 class Luck(commands.Cog):

@@ -3,15 +3,17 @@ from asyncio.exceptions import CancelledError
 from typing import Optional, Union
 
 import aiogram
+from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.dispatcher.dispatcher import Dispatcher
-from aiogram.types import BufferedInputFile
-from aiogram.types import Message as TelegramMessage
 from aiogram.exceptions import AiogramError
+from aiogram.types import BufferedInputFile, LinkPreviewOptions
+from aiogram.types import Message as TelegramMessage
 from discord import Attachment, Message, MessageReference
 from discord.ext import commands, tasks
 from pydantic import BaseModel
 from sqlalchemy import select
+
 from sysbot_helper import Bot
 from sysbot_helper.aiogram import unparse_entities
 
@@ -46,7 +48,11 @@ class Telegram(commands.Cog):
 
         # A list of Telegram bots (aiogram.Bot) to poll for updates
         self.bots = {
-            name: aiogram.Bot(token, session=self.session, parse_mode="HTML")
+            name: aiogram.Bot(
+                token,
+                session=self.session,
+                default=DefaultBotProperties(parse_mode="HTML"),
+            )
             for name, token in config.bots.items()
         }
 
@@ -164,7 +170,7 @@ class Telegram(commands.Cog):
         ref_id = await self.get_by_discord(message.reference)
         msg = await self.bots[chat_link.bot].send_message(
             chat_link.chat,
-            disable_web_page_preview=True,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
             text=text,
             reply_to_message_id=ref_id,
         )
@@ -200,7 +206,10 @@ class Telegram(commands.Cog):
         telegram_id = await self.get_by_discord(after)
         if telegram_id:
             await self.bots[chat_link.bot].edit_message_text(
-                text, chat_link.chat, telegram_id, disable_web_page_preview=True
+                text,
+                chat_link.chat,
+                telegram_id,
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
             )
 
     @commands.Cog.listener()

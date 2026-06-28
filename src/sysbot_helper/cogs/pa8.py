@@ -1,11 +1,12 @@
+from dataclasses import dataclass
+from difflib import get_close_matches
+from glob import glob
+from itertools import chain
+from os.path import basename, splitext
+
 from discord import File
 from discord.commands.core import slash_command
 from discord.ext import commands
-from dataclasses import dataclass
-from difflib import get_close_matches
-from os.path import basename, splitext
-from glob import glob
-from itertools import chain
 
 
 class Pa8(commands.Cog):

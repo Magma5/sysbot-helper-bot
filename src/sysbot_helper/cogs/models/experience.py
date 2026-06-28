@@ -1,5 +1,6 @@
+from sqlalchemy import BigInteger, Column, Integer
+
 from . import Base
-from sqlalchemy import Column, Integer, BigInteger
 
 
 class Experience(Base):

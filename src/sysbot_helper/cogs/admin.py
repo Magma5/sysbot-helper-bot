@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from enum import Enum
 from time import time
 
-from discord import slash_command, TextChannel
+from discord import TextChannel, slash_command
 from discord.errors import HTTPException
 from discord.ext import commands
 from pydantic import BaseModel
@@ -59,7 +59,7 @@ class Admin(CogSendError):
         summary = ["Father, I will set these name for you.", ""]
         for channel in channels:
             summary.append(
-                "#{} ({}) -> {}".format(channel.name, channel.guild.name, name)
+                f"#{channel.name} ({channel.guild.name}) -> {name}"
             )
         await ctx.respond("\n".join(summary))
 
@@ -121,7 +121,7 @@ class Admin(CogSendError):
         content = ["Votelock user list:"]
         for timestamp, author, guild in self.votelock_list.values():
             content.append(
-                "{} ({}): {:.0f}s ago".format(author, guild, time() - timestamp)
+                f"{author} ({guild}): {time() - timestamp:.0f}s ago"
             )
 
         await ctx.send("\n".join(content))

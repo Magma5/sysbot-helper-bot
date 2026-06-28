@@ -1,11 +1,12 @@
-from contextlib import suppress
 import re
+from collections import defaultdict
+from contextlib import suppress
 
 import discord
 import frontmatter
-from sysbot_helper.utils import apply_obj_data, embed_from_dict
 from slugify import slugify
-from collections import defaultdict
+
+from sysbot_helper.utils import apply_obj_data, embed_from_dict
 
 
 class Post:
