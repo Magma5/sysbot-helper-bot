@@ -11,8 +11,8 @@ class HelpDoc(commands.Cog):
     """Interactive paginated help documentation."""
 
     class Config(BaseModel):
-        templates_root = "templates/docs"
-        options_per_menu = 25
+        templates_root: str = "templates/docs"
+        options_per_menu: int = 25
 
     def __init__(self, bot, config: Config):
         self.bot = bot
