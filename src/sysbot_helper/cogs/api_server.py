@@ -238,7 +238,7 @@ class ApiServer(commands.Cog):
         if self.site_task is not None:
             return
 
-        app = web.Application()
+        app = web.Application(client_max_size=500 * 1024 * 1024)
 
         app.add_routes(DiscordHandler(self.bot).routes)
 
