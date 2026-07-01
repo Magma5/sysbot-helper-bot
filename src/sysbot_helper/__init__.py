@@ -36,7 +36,11 @@ def bot_main():
     if args.alembic is not None:
         return run_alembic(args.config_file, args.alembic)
 
-    asyncio.run(bot_start(args.config_file))
+    try:
+        asyncio.run(bot_start(args.config_file))
+    except KeyboardInterrupt:
+        log.info("Shutdown signal received (SIGINT). Exiting cleanly.")
+
 
 
 def run_alembic(config_files: list[Path], alembic_argv):
