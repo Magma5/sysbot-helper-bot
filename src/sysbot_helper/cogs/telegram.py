@@ -288,8 +288,16 @@ class Telegram(commands.Cog):
 
     @tasks.loop()
     async def check_updates(self):
+        if self.bot.is_closed():
+            self.check_updates.cancel()
+            return
+
         try:
-            await self.dp.start_polling(*self.bots.values(), polling_timeout=30)
+            await self.dp.start_polling(
+                *self.bots.values(),
+                polling_timeout=30,
+                handle_signals=False,
+            )
         except CancelledError:
             await self.session.close()
             self.check_updates.cancel()
