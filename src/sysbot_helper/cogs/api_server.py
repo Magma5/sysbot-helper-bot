@@ -47,6 +47,9 @@ class DiscordHandler:
             web.get("/api/webhooks/{channel_id:[0-9]+}", self.get_webhook),
             web.post("/api/webhooks/{channel_id:[0-9]+}", self.send_message_webhook),
             web.post("/api/sendgrid/{channel_id:[0-9]+}", self.send_message_sendgrid),
+            web.head("/api/send_file/{channel_id:[0-9]+}", self.head_bucket_s3),
+            web.put("/api/send_file/{channel_id:[0-9]+}", self.create_bucket_s3),
+            web.put("/api/send_file/{channel_id:[0-9]+}/{filename:.+}", self.upload_file_s3),
         ]
 
     async def hello(self, _):
@@ -167,6 +170,31 @@ class DiscordHandler:
         embed = Embed(description="\n".join(content))
 
         return await self._send_message_common(channel_id, embed=embed, files=files)
+
+    async def head_bucket_s3(self, request: web.Request):
+        channel_id = int(request.match_info["channel_id"])
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            raise web.HTTPNotFound(reason="Channel %d not found." % channel_id)
+        return web.Response(status=200)
+
+    async def create_bucket_s3(self, request: web.Request):
+        channel_id = int(request.match_info["channel_id"])
+        channel = self.bot.get_channel(channel_id)
+        if not channel:
+            raise web.HTTPNotFound(reason="Channel %d not found." % channel_id)
+        return web.Response(status=200)
+
+    async def upload_file_s3(self, request: web.Request):
+        channel_id = int(request.match_info["channel_id"])
+        s3_key = request.match_info["filename"]
+        filename = s3_key.split("/")[-1]
+
+        data = await request.read()
+        file = File(BytesIO(data), filename=filename)
+
+        return await self._send_message_common(channel_id, files=[file])
+
 
     async def _send_message_common(self, channel_id, **kwargs):
         try:
