@@ -64,6 +64,10 @@ class TestBotSmoke(unittest.TestCase):
                     "channels": [123],
                 },
             },
+            "cogs_extra": {
+                "purge": {},
+                "typing": {},
+            },
         }
 
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -99,8 +103,11 @@ class TestBotSmoke(unittest.TestCase):
             "Pa8",
             "Sysinfo",
             "Leetcode",
+            "Purge",
+            "Typing",
         }
 
         print(f"Successfully loaded cogs: {loaded_cogs}")
         for cog in expected_cogs:
             self.assertIn(cog, loaded_cogs, f"Expected cog '{cog}' was not loaded!")
+
