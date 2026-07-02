@@ -26,8 +26,7 @@ class Stats(commands.Cog):
             variables = self.bot.template_variables(channel)
 
             # Render template
-            template = self.bot.template_env.from_string(channel_template)
-            text = template.render(variables)
+            text = self.bot.template_engine.render_string(channel_template, variables)
 
             if channel.name == text:
                 continue

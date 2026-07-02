@@ -161,8 +161,8 @@ class Telegram(commands.Cog):
 
         chat_link = self.discord_channels[message.channel.id]
         text = (
-            self.bot.template_env.from_string(chat_link.telegram_message).render(
-                message=message
+            self.bot.template_engine.render_string(
+                chat_link.telegram_message, {"message": message}
             )
             or "(Empty message)"
         )
@@ -197,8 +197,8 @@ class Telegram(commands.Cog):
 
         chat_link = self.discord_channels[after.channel.id]
         text = (
-            self.bot.template_env.from_string(chat_link.telegram_message).render(
-                message=after
+            self.bot.template_engine.render_string(
+                chat_link.telegram_message, {"message": after}
             )
             or "(Empty message)"
         )

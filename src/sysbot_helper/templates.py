@@ -58,7 +58,7 @@ class TemplateEngine:
 
         self.env = SandboxedEnvironment(
             loader=loader,
-            autoescape=False,
+            autoescape=False,  # Generating Markdown/Plaintext for Discord, not HTML
             trim_blocks=True,
             lstrip_blocks=True,
         )
@@ -68,6 +68,9 @@ class TemplateEngine:
         self.env.filters["regex_replace"] = _filter_regex_replace
         self.env.filters["truncate_length"] = _filter_truncate_length
 
+    # Using @lru_cache on an instance method binds `self` in the cache key.
+    # Because TemplateEngine is managed as a singleton on Bot, this is safe for lifetime reuse.
+    # If TemplateEngine is ever instantiated dynamically per-request or per-cog, use an instance-dict cache instead.
     @functools.lru_cache(maxsize=256)
     def _compile_string(self, source: str):
         return self.env.from_string(source)

@@ -37,8 +37,10 @@ class Dm(commands.Cog):
             return
 
         channel = self.bot.get_partial_messageable(self.config.channels[0])
-        template = self.bot.template_env.get_template("dm/dm.md")
-        await channel.send(template.render(message=message, embeds=message.embeds))
+        content = self.bot.template_engine.render_file(
+            "dm/dm.md", {"message": message, "embeds": message.embeds}
+        )
+        await channel.send(content)
 
     @commands.Cog.listener("on_message")
     async def on_message_reply(self, message: Message):

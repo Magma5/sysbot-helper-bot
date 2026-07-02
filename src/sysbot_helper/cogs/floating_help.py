@@ -68,8 +68,10 @@ class FloatingHelp(commands.Cog):
 
         # Render template
         variables = self.bot.template_variables(channel)
-        template = self.bot.template_env.from_string(info.message_text)
-        content = template.render(variables).strip() + self.config.magic_space
+        content = (
+            self.bot.template_engine.render_string(info.message_text, variables).strip()
+            + self.config.magic_space
+        )
 
         # Use API to retrieve history, so that it handles deleted messages as well
         last_message_id = 0

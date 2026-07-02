@@ -63,7 +63,6 @@ class Bot(Base):
         self.cog_list = set()
 
         self.template_engine = TemplateEngine(template_dirs=["templates"])
-        self.template_env = self.template_engine.env
         self.features = set()
         self.scheduled_tasks_timeout = 300
         self.bg_tasks = set()
@@ -278,7 +277,7 @@ class Bot(Base):
         ctx.guild_config = lambda: self.guild_config(ctx.guild)
         ctx.channel_config = lambda: self.channel_config(ctx.channel)
         ctx.author_config = lambda: self.user_config(ctx.author)
-        ctx.env = self.template_env
+        ctx.template_engine = self.template_engine
         ctx.groups = self.groups
         return ctx
 

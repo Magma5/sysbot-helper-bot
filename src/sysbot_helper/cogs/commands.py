@@ -37,19 +37,16 @@ class Commands(commands.Cog):
             command_options.update(parser.command_options)
 
         def get_response(ctx):
+            variables = ctx.template_variables()
             # Reload the file each time the command updates
             if path is not None:
-                template = ctx.env.get_template(str(path))
+                rendered = ctx.template_engine.render_file(str(path), variables)
             else:
                 # If text is a list, then randomly send one of them
                 selected_text = text
                 if isinstance(selected_text, list):
                     selected_text = choice(text)
-                template = ctx.env.from_string(selected_text)
-
-            # Render the whole file before processing
-            variables = ctx.template_variables()
-            rendered = template.render(variables)
+                rendered = ctx.template_engine.render_string(selected_text, variables)
 
             # Send either normal message or embed
             return DiscordTextParser.convert_to_response(rendered)

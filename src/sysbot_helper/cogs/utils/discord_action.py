@@ -37,13 +37,12 @@ class DiscordMessage:
         return await channel.send(**message)
 
     def get_send(self, bot, variables):
-        env = bot.template_env
         message = dict(self.message)
 
         # Render templates
         content = message.get("content", None)
         if content:
-            message["content"] = env.from_string(content).render(variables)
+            message["content"] = bot.template_engine.render_string(content, variables)
 
         return message
 
@@ -101,7 +100,7 @@ class DiscordAction:
     def __init__(self, ctx: Context, **variables):
         self.ctx = ctx
         self.bot = ctx.bot
-        self.env = self.bot.template_env
+        self.template_engine = self.bot.template_engine
 
         self.variables = self.bot.template_variables(ctx)
         self.variables.update(variables)

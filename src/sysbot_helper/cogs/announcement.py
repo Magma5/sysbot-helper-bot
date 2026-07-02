@@ -10,9 +10,9 @@ class Announcement(CogSendError):
         self.bot = bot
 
     async def do_announce(self, ctx, channel, template, **kwargs):
-        template = ctx.env.get_template(template)
+        rendered = ctx.template_engine.render_file(template, kwargs)
 
-        parser = DiscordTextParser(template.render(**kwargs))
+        parser = DiscordTextParser(rendered)
         resp = parser.make_response(
             color=channel.guild.get_member(ctx.bot.user.id).color
         )

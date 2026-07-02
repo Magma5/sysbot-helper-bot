@@ -1,6 +1,11 @@
 import unittest
+from datetime import datetime
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
+from jinja2.sandbox import SecurityError
+
+from sysbot_helper.templates import TemplateEngine
 
 
 class TestTemplatesJinja(unittest.TestCase):
@@ -47,9 +52,6 @@ class TestTemplatesJinja(unittest.TestCase):
 
     def test_sandboxed_security(self):
         """Verify that SandboxedEnvironment prevents SSTI and dangerous attribute access."""
-        from sysbot_helper.templates import TemplateEngine
-        from jinja2.sandbox import SecurityError
-
         engine = TemplateEngine()
         # Attempting to access __class__ or __subclasses__ in SandboxedEnvironment raises SecurityError
         with self.assertRaises(SecurityError):
@@ -57,9 +59,6 @@ class TestTemplatesJinja(unittest.TestCase):
 
     def test_custom_filters(self):
         """Verify strftime, regex_replace, and truncate_length custom filters."""
-        from sysbot_helper.templates import TemplateEngine
-        from datetime import datetime
-
         engine = TemplateEngine()
         now = datetime(2026, 7, 1, 12, 0, 0)
 
@@ -74,4 +73,3 @@ class TestTemplatesJinja(unittest.TestCase):
         # truncate_length
         res = engine.render_string("{{ ('a' * 10) | truncate_length(5) }}", {})
         self.assertEqual(res, "aa...")
-
