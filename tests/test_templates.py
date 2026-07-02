@@ -44,3 +44,34 @@ class TestTemplatesJinja(unittest.TestCase):
             + "\n".join(f"{p}: {err}" for p, err in failed_templates),
         )
         print("All templates successfully compiled by Jinja2!")
+
+    def test_sandboxed_security(self):
+        """Verify that SandboxedEnvironment prevents SSTI and dangerous attribute access."""
+        from sysbot_helper.templates import TemplateEngine
+        from jinja2.sandbox import SecurityError
+
+        engine = TemplateEngine()
+        # Attempting to access __class__ or __subclasses__ in SandboxedEnvironment raises SecurityError
+        with self.assertRaises(SecurityError):
+            engine.render_string("{{ ''.__class__.__mro__[1].__subclasses__() }}", {})
+
+    def test_custom_filters(self):
+        """Verify strftime, regex_replace, and truncate_length custom filters."""
+        from sysbot_helper.templates import TemplateEngine
+        from datetime import datetime
+
+        engine = TemplateEngine()
+        now = datetime(2026, 7, 1, 12, 0, 0)
+
+        # strftime
+        res = engine.render_string("{{ now | strftime('%Y-%m-%d') }}", {"now": now})
+        self.assertEqual(res, "2026-07-01")
+
+        # regex_replace
+        res = engine.render_string("{{ 'hello 123' | regex_replace('[0-9]+', 'world') }}", {})
+        self.assertEqual(res, "hello world")
+
+        # truncate_length
+        res = engine.render_string("{{ ('a' * 10) | truncate_length(5) }}", {})
+        self.assertEqual(res, "aa...")
+

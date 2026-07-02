@@ -15,10 +15,9 @@ from discord.abc import GuildChannel
 from discord.ext import tasks
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
-from jinja2 import Environment, FileSystemLoader
-
 from .groups import Groups
 from .schedule import ScheduledTask
+from .templates import TemplateEngine
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +62,8 @@ class Bot(Base):
         # The remaining configs are used to load cogs
         self.cog_list = set()
 
-        self.template_env = Environment(loader=FileSystemLoader("templates"))
+        self.template_engine = TemplateEngine(template_dirs=["templates"])
+        self.template_env = self.template_engine.env
         self.features = set()
         self.scheduled_tasks_timeout = 300
         self.bg_tasks = set()
