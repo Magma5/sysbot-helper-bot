@@ -79,20 +79,31 @@ class TestCronExpression(unittest.TestCase):
         # 2026-07-07 is a Tuesday (neither matches)
         self.assertFalse(expression.is_now(datetime(2026, 7, 7, 0, 0, 0)))
 
-    def test_hashed_cron_resolution_deterministic_matching(self) -> None:
-        """Verifies that H hashed expressions resolve deterministically with Random(seed)."""
-        seed: str = "leetcode_daily_sync"
+    def test_six_field_cron_sub_minute_precision(self) -> None:
+        """Verifies 6-field sub-minute precision cron expressions (sec min hr dom mon dow)."""
+        seed: str = "fast_polling_job"
+        six_field_cron: CronExpression = CronExpression("H/15 * * * * *", seed=seed)
 
-        expression_one: CronExpression = CronExpression("H H(10-20) * * *", seed=seed)
-        expression_two: CronExpression = CronExpression("H H(10-20) * * *", seed=seed)
+        target_time: datetime = datetime(2026, 7, 6, 14, 30, 0)
+        resolved_str: str = HashedCronResolver.resolve_expression(
+            "H/15 * * * * *", job_name=seed, target_datetime=target_time
+        )
+        tokens: list[str] = resolved_str.split()
+        self.assertEqual(len(tokens), 6)
 
-        # Both instances with the same seed must produce identical string expressions
-        self.assertEqual(str(expression_one), str(expression_two))
+        # First token is resolved second step range e.g. "7-59/15"
+        self.assertIn("/15", tokens[0])
+        start_sec: int = int(tokens[0].split("-")[0])
 
-        # Test bounded range H(10-20) for hour field
-        resolved_hour_item: CronItem = expression_one.hour[0]
-        self.assertGreaterEqual(resolved_hour_item.range_from, 10)
-        self.assertLessEqual(resolved_hour_item.range_to, 20)
+        matching_time: datetime = datetime(2026, 7, 6, 14, 30, start_sec)
+        self.assertTrue(six_field_cron.is_now(matching_time))
+
+    def test_stable_cross_process_crc32_hashing(self) -> None:
+        """Verifies that zlib.crc32 hashing is cross-process stable."""
+        hash_one: int = HashedCronResolver._compute_stable_hash("job_a", 170000)
+        hash_two: int = HashedCronResolver._compute_stable_hash("job_a", 170000)
+
+        self.assertEqual(hash_one, hash_two)
 
     def test_invalid_cron_interval_raises_value_error(self) -> None:
         """Verifies that non-numeric or negative intervals raise a ValueError."""

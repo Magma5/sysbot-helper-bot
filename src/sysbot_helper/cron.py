@@ -1,7 +1,21 @@
 import calendar
 import re
-from datetime import datetime
+import zlib
+from datetime import datetime, timedelta
+from enum import Enum, auto
 from random import Random
+from typing import Any
+
+
+class CronFieldType(Enum):
+    """Enumeration of cron expression fields in order of granularity."""
+
+    SECOND = auto()
+    MINUTE = auto()
+    HOUR = auto()
+    DAY_OF_MONTH = auto()
+    MONTH = auto()
+    DAY_OF_WEEK = auto()
 
 
 _MONTH_NAMES: dict[str, int] = {
@@ -38,64 +52,108 @@ _PREDEFINED_CRON_SHORTCUTS: dict[str, str] = {
 
 
 class HashedCronResolver:
-    """Utility class to resolve 'H' and 'H(start-end)' hashed tokens using random.Random(seed)."""
+    """Resolves 'H' hashed tokens deterministically using process-independent zlib.crc32 hashing."""
 
     HASH_TOKEN_PATTERN: re.Pattern[str] = re.compile(
         r"^H(?:\((?P<range_start>[0-9a-z]+)-(?P<range_end>[0-9a-z]+)\))?$",
         re.IGNORECASE,
     )
 
+    # Specification defining allowed boundaries and alias mapping per cron field type
+    FIELD_SPECIFICATIONS: list[tuple[CronFieldType, int, int, dict[str, int]]] = [
+        (CronFieldType.SECOND, 0, 59, {}),
+        (CronFieldType.MINUTE, 0, 59, {}),
+        (CronFieldType.HOUR, 0, 23, {}),
+        (CronFieldType.DAY_OF_MONTH, 1, 31, {}),
+        (CronFieldType.MONTH, 1, 12, _MONTH_NAMES),
+        (CronFieldType.DAY_OF_WEEK, 0, 7, _DAY_NAMES),
+    ]
+
     @classmethod
     def resolve_expression(
         cls,
         expression_string: str,
-        seed_identifier: str | bytes | int | None = None,
+        job_name: Any | None = None,
+        target_datetime: datetime | None = None,
     ) -> str:
-        """Resolves all 'H' tokens in a cron expression using random.Random(seed)."""
-        tokens: list[str] = expression_string.split()
-        if len(tokens) < 5 or seed_identifier is None:
-            return expression_string
+        """Resolves all 'H' tokens in a 5-field or 6-field cron expression into numeric cron values.
 
-        field_bounds: list[tuple[int, int, dict[str, int]]] = [
-            (0, 59, {}),
-            (0, 23, {}),
-            (1, 31, {}),
-            (1, 12, _MONTH_NAMES),
-            (0, 7, _DAY_NAMES),
-        ]
+        Example:
+            - Input:  "H/15 H(10-30) * * *" (job_name="backup")
+            - Output: "7-59/15 18 * * *"
+        """
+        normalized_expression: str = _PREDEFINED_CRON_SHORTCUTS.get(
+            expression_string.strip().lower(),
+            expression_string.strip(),
+        )
+
+        tokens: list[str] = normalized_expression.split()
+        if len(tokens) < 5 or job_name is None:
+            return normalized_expression
+
+        # Standardize 5-field expressions to 6-field internally by prepending "0" for seconds
+        is_five_field: bool = len(tokens) == 5
+        if is_five_field:
+            tokens = ["0"] + tokens
+
+        if target_datetime is None:
+            target_datetime = datetime.now()
 
         resolved_tokens: list[str] = []
-        for index, token in enumerate(tokens[:5]):
-            min_val, max_val, aliases = field_bounds[index]
-            field_seed: str = f"{seed_identifier}_field_{index}"
+        for index, (field_type, min_val, max_val, aliases) in enumerate(
+            cls.FIELD_SPECIFICATIONS
+        ):
+            token: str = tokens[index]
+            period_start_timestamp: int = cls._get_period_start_timestamp(
+                field_type=field_type,
+                target_datetime=target_datetime,
+            )
+
+            combined_seed_integer: int = cls._compute_stable_hash(
+                job_name=job_name,
+                period_start_timestamp=period_start_timestamp,
+            )
+
             resolved_token: str = cls.resolve_token(
                 token_expression=token,
-                seed_identifier=field_seed,
+                seed_integer=combined_seed_integer,
                 minimum_field_value=min_val,
                 maximum_field_value=max_val,
                 aliases=aliases,
             )
             resolved_tokens.append(resolved_token)
 
-        resolved_tokens.extend(tokens[5:])
+        resolved_tokens.extend(tokens[6:])
+
+        # Strip prepended '0' if original expression was 5-field
+        if is_five_field:
+            resolved_tokens = resolved_tokens[1:]
+
         return " ".join(resolved_tokens)
 
     @classmethod
     def resolve_token(
         cls,
         token_expression: str,
-        seed_identifier: str | bytes | int,
+        seed_integer: int,
         minimum_field_value: int,
         maximum_field_value: int,
         aliases: dict[str, int] | None = None,
     ) -> str:
-        """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax."""
+        """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax.
+
+        Recursively resolves nested tokens:
+            - Comma list: "H(0-15),H(30-45)" -> evaluates sub-tokens independently.
+            - Step expression: "H/15" -> evaluates hashed start offset "7", returning "7-59/15".
+            - Range token: "H(10-30)" -> picks deterministic integer between 10 and 30.
+        """
+        # Handle comma-separated lists recursively
         if "," in token_expression:
             sub_tokens: list[str] = token_expression.split(",")
             resolved_sub_tokens: list[str] = [
                 cls.resolve_token(
                     token_expression=sub_token,
-                    seed_identifier=f"{seed_identifier}_sub_{sub_index}",
+                    seed_integer=seed_integer + sub_index,
                     minimum_field_value=minimum_field_value,
                     maximum_field_value=maximum_field_value,
                     aliases=aliases,
@@ -104,17 +162,21 @@ class HashedCronResolver:
             ]
             return ",".join(resolved_sub_tokens)
 
+        # Handle step intervals (e.g. H/15 or H(0-30)/5)
         if "/" in token_expression:
             base_expression, step_interval = token_expression.split("/", 1)
+            if "h" not in base_expression.lower():
+                return token_expression
+
             step_int: int = int(step_interval) if step_interval.isdigit() else 1
             max_start: int = (
                 minimum_field_value + step_int - 1
-                if base_expression.upper() == "H"
+                if base_expression.strip().upper() == "H"
                 else maximum_field_value
             )
             resolved_base: str = cls.resolve_token(
                 token_expression=base_expression,
-                seed_identifier=seed_identifier,
+                seed_integer=seed_integer,
                 minimum_field_value=minimum_field_value,
                 maximum_field_value=min(max_start, maximum_field_value),
                 aliases=aliases,
@@ -135,10 +197,55 @@ class HashedCronResolver:
             lower_bound = cls._parse_bound(range_start_string, aliases)
             upper_bound = cls._parse_bound(range_end_string, aliases)
 
-        random_generator: Random = Random(seed_identifier)
+        random_generator: Random = Random(seed_integer)
         deterministic_offset: int = random_generator.randint(lower_bound, upper_bound)
 
         return str(deterministic_offset)
+
+    @classmethod
+    def _get_period_start_timestamp(
+        cls,
+        field_type: CronFieldType,
+        target_datetime: datetime,
+    ) -> int:
+        """Calculates Unix timestamp (seconds) at the start of the field's evaluation period.
+
+        - SECOND: Starts at current minute (second 0)
+        - MINUTE: Starts at current hour (minute 0, second 0)
+        - HOUR: Starts at current day (hour 0, minute 0, second 0)
+        - DAY_OF_MONTH: Starts at current month (day 1, hour 0)
+        - MONTH: Starts at current year (month 1, day 1)
+        - DAY_OF_WEEK: Starts at current ISO week (Monday 00:00:00)
+        """
+        if field_type == CronFieldType.SECOND:
+            period_datetime: datetime = target_datetime.replace(second=0, microsecond=0)
+        elif field_type == CronFieldType.MINUTE:
+            period_datetime = target_datetime.replace(minute=0, second=0, microsecond=0)
+        elif field_type == CronFieldType.HOUR:
+            period_datetime = target_datetime.replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+        elif field_type == CronFieldType.DAY_OF_MONTH:
+            period_datetime = target_datetime.replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+        elif field_type == CronFieldType.MONTH:
+            period_datetime = target_datetime.replace(
+                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+        elif field_type == CronFieldType.DAY_OF_WEEK:
+            monday_offset: int = target_datetime.weekday()
+            period_datetime = (target_datetime - timedelta(days=monday_offset)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+
+        return int(period_datetime.timestamp())
+
+    @staticmethod
+    def _compute_stable_hash(job_name: Any, period_start_timestamp: int) -> int:
+        """Computes a process-independent, cross-server 32-bit integer hash using zlib.crc32."""
+        seed_bytes: bytes = f"{job_name}_{period_start_timestamp}".encode("utf-8")
+        return zlib.crc32(seed_bytes)
 
     @staticmethod
     def _parse_bound(bound_string: str, aliases: dict[str, int] | None) -> int:
@@ -325,9 +432,10 @@ class CronItem:
 
 
 class CronExpression:
-    """Representation of a standard 5-field cron expression with POSIX compliance and optional Hashed Cron ('H') resolution."""
+    """Representation of a 5-field or 6-field cron expression with POSIX compliance and Hashed Cron ('H') resolution."""
 
     __slots__ = (
+        "second",
         "minute",
         "hour",
         "day",
@@ -335,15 +443,16 @@ class CronExpression:
         "day_of_week",
         "raw_expression",
         "seed",
+        "has_explicit_seconds_field",
     )
 
     def __init__(
         self,
         expression_string: str,
-        seed: str | bytes | int | None = None,
+        seed: Any | None = None,
     ) -> None:
         self.raw_expression: str = expression_string.strip()
-        self.seed: str | bytes | int | None = seed
+        self.seed: Any | None = seed
 
         # Expand predefined shortcuts (e.g. @daily, @hourly)
         normalized_expression: str = _PREDEFINED_CRON_SHORTCUTS.get(
@@ -351,48 +460,41 @@ class CronExpression:
             self.raw_expression,
         )
 
-        # Resolve 'H' hashed tokens using Random(seed) if seed is provided
+        # Resolve 'H' hashed tokens for initial instantiation
         if seed is not None:
             normalized_expression = HashedCronResolver.resolve_expression(
                 normalized_expression,
-                seed_identifier=seed,
+                job_name=seed,
+                target_datetime=datetime.now(),
             )
 
-        expression_tokens: list[str] = normalized_expression.split()
-        if len(expression_tokens) < 5:
-            raise ValueError(
-                f"Cron expression requires 5 fields, received {len(expression_tokens)}: '{expression_string}'"
-            )
-
-        minute_token, hour_token, day_token, month_token, day_of_week_token = (
-            expression_tokens[:5]
-        )
-
-        self.minute: list[CronItem] = [
-            CronItem.Minute(sub_token) for sub_token in minute_token.split(",")
-        ]
-        self.hour: list[CronItem] = [
-            CronItem.Hour(sub_token) for sub_token in hour_token.split(",")
-        ]
-        self.day: list[CronItem] = [
-            CronItem.Day(sub_token) for sub_token in day_token.split(",")
-        ]
-        self.month: list[CronItem] = [
-            CronItem.Month(sub_token) for sub_token in month_token.split(",")
-        ]
-        self.day_of_week: list[CronItem] = [
-            CronItem.DayOfWeek(sub_token) for sub_token in day_of_week_token.split(",")
-        ]
+        self._build_field_items(normalized_expression)
 
     def is_now(self, target_datetime: datetime | None = None) -> bool:
-        """Evaluates whether target_datetime matches the cron expression."""
+        """Evaluates whether target_datetime matches the 5-field or 6-field cron expression."""
         if target_datetime is None:
             target_datetime = datetime.now()
+
+        # Dynamic period-aware resolution for 'H' tokens if seed is set
+        if self.seed is not None and "h" in self.raw_expression.lower():
+            resolved_expression_string: str = HashedCronResolver.resolve_expression(
+                self.raw_expression,
+                job_name=self.seed,
+                target_datetime=target_datetime,
+            )
+            resolved_cron_expression: CronExpression = CronExpression(
+                resolved_expression_string,
+                seed=None,
+            )
+            return resolved_cron_expression.is_now(target_datetime)
 
         # Python dt.weekday(): 0 = Monday, 6 = Sunday
         # Standard cron day_of_week: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
         current_day_of_week: int = (target_datetime.weekday() + 1) % 7
 
+        second_match: bool = any(
+            item.match(target_datetime.second) for item in self.second
+        )
         minute_match: bool = any(
             item.match(target_datetime.minute) for item in self.minute
         )
@@ -419,16 +521,54 @@ class CronExpression:
         else:
             date_match: bool = day_of_month_match and day_of_week_match
 
-        return minute_match and hour_match and month_match and date_match
+        return (
+            second_match and minute_match and hour_match and month_match and date_match
+        )
+
+    def _build_field_items(self, expression_string: str) -> None:
+        """Parses expression tokens into CronItem instances (standardized to 6 fields internally)."""
+        expression_tokens: list[str] = expression_string.split()
+        if len(expression_tokens) < 5:
+            raise ValueError(
+                f"Cron expression requires at least 5 fields, received {len(expression_tokens)}: '{expression_string}'"
+            )
+
+        self.has_explicit_seconds_field: bool = len(expression_tokens) >= 6
+
+        # Standardize 5-field to 6-field internally by prepending "0" for seconds
+        if len(expression_tokens) == 5:
+            expression_tokens = ["0"] + expression_tokens
+
+        (
+            second_token,
+            minute_token,
+            hour_token,
+            day_token,
+            month_token,
+            day_of_week_token,
+        ) = expression_tokens[:6]
+
+        self.second = [CronItem.Second(token) for token in second_token.split(",")]
+        self.minute = [CronItem.Minute(token) for token in minute_token.split(",")]
+        self.hour = [CronItem.Hour(token) for token in hour_token.split(",")]
+        self.day = [CronItem.Day(token) for token in day_token.split(",")]
+        self.month = [CronItem.Month(token) for token in month_token.split(",")]
+        self.day_of_week = [
+            CronItem.DayOfWeek(token) for token in day_of_week_token.split(",")
+        ]
 
     def __str__(self) -> str:
+        all_fields = [
+            self.second,
+            self.minute,
+            self.hour,
+            self.day,
+            self.month,
+            self.day_of_week,
+        ]
+        active_fields = (
+            all_fields if self.has_explicit_seconds_field else all_fields[1:]
+        )
         return " ".join(
-            ",".join(str(item) for item in cron_field_items)
-            for cron_field_items in (
-                self.minute,
-                self.hour,
-                self.day,
-                self.month,
-                self.day_of_week,
-            )
+            ",".join(str(item) for item in field_items) for field_items in active_fields
         )
