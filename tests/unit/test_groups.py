@@ -2,15 +2,14 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+
 from sysbot_helper.groups import Groups
 
 
 class TestGroups(unittest.TestCase):
     def test_group_member_resolution_with_nested_structures(self) -> None:
         """Verifies BFS expansion of members across deeply nested dictionaries and list values."""
-        temporary_directory: tempfile.TemporaryDirectory[str] = (
-            tempfile.TemporaryDirectory()
-        )
+        temporary_directory: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()
         save_file_path: Path = Path(temporary_directory.name) / "sysbot_channels.json"
         save_file_path.write_text("{}", encoding="utf-8")
 
@@ -40,9 +39,7 @@ class TestGroups(unittest.TestCase):
 
     def test_group_persistence_and_member_addition(self) -> None:
         """Verifies saved group membership updates and JSON file persistence."""
-        temporary_directory: tempfile.TemporaryDirectory[str] = (
-            tempfile.TemporaryDirectory()
-        )
+        temporary_directory: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()
         save_file_path: Path = Path(temporary_directory.name) / "sysbot_channels.json"
         save_file_path.write_text("{}", encoding="utf-8")
 

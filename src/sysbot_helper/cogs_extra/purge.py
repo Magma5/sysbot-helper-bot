@@ -1,7 +1,6 @@
 import random
 import traceback
 from datetime import timedelta
-from typing import Optional
 
 from discord import Member, Message
 from discord.channel import TextChannel
@@ -46,9 +45,7 @@ class Purge(commands.Cog):
 
     @commands.command(alias="purge_reaction")
     @commands.has_permissions(manage_messages=True)
-    async def purge_reactions(
-        self, ctx: Context, count: int = 1, channel: TextChannel = None
-    ):
+    async def purge_reactions(self, ctx: Context, count: int = 1, channel: TextChannel = None):
         ref = ctx.message.reference
 
         if channel is None:
@@ -71,8 +68,8 @@ class Purge(commands.Cog):
         self,
         ctx: Context,
         count: int,
-        sample: Optional[int] = 1,
-        channel: Optional[TextChannel] = None,
+        sample: int | None = 1,
+        channel: TextChannel | None = None,
     ):
         if channel is None:
             channel = ctx.channel

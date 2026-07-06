@@ -1,5 +1,4 @@
 import asyncio
-from functools import cache
 
 from discord.ext import commands
 from pydantic.dataclasses import dataclass
@@ -30,10 +29,13 @@ class Level(commands.Cog):
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
+        self._locks = {}
 
-    @cache
     def lock(self, guild_id, user_id):
-        return asyncio.Lock()
+        key = (guild_id, user_id)
+        if key not in self._locks:
+            self._locks[key] = asyncio.Lock()
+        return self._locks[key]
 
     @commands.command()
     async def top(self, ctx):
@@ -45,9 +47,7 @@ class Level(commands.Cog):
                 .order_by(Experience.experience.desc())
             )
 
-        await ctx.send(
-            "\n".join(f"({row.User.name}): {row.Experience.experience}" for row in rows)
-        )
+        await ctx.send("\n".join(f"({row.User.name}): {row.Experience.experience}" for row in rows))
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -57,9 +57,7 @@ class Level(commands.Cog):
         if message.author.bot:
             return
 
-        async with self.lock(
-            message.guild.id, message.author.id
-        ), self.bot.Session.begin() as session:
+        async with self.lock(message.guild.id, message.author.id), self.bot.Session.begin() as session:
             await User.update(message, session)
 
             user = await get_user(message, session)

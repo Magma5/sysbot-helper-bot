@@ -30,6 +30,13 @@ def strip_tags(html):
     return s.get_data()
 
 
+@cache
+def load_titleid():
+    with open("res/titledb/titles.json") as f:
+        data = json.load(f)
+    return data
+
+
 class Adb(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -53,16 +60,11 @@ class Adb(commands.Cog):
 
         await ctx.send(embed=embed, file=screen_file)
 
-    @cache
-    def load_titleid(self):
-        with open("res/titledb/titles.json") as f:
-            data = json.load(f)
-        return data
-
     @commands.command()
     async def titleid(self, ctx, titleid: str):
-        data = self.load_titleid()
+        data = load_titleid()
         id = titleid.upper()
+
         if id not in data:
             return await ctx.send("Title ID not found")
 

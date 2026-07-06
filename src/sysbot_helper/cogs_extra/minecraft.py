@@ -22,9 +22,7 @@ class MinecraftTextParser:
             with open(self.MINECRAFT_LANG_JSON) as f:
                 self.lang = json.load(f)
         except FileNotFoundError:
-            log.info(
-                "Minecraft language file not found at %s.", self.MINECRAFT_LANG_JSON
-            )
+            log.info("Minecraft language file not found at %s.", self.MINECRAFT_LANG_JSON)
 
     def parse(self, json_data):
         data = json.loads(json_data)
@@ -46,9 +44,7 @@ class MinecraftTextParser:
 
                 text, nsubs = re.subn(r"%([0-9]+)\$", r"%(\1)", text)
                 if nsubs > 0:
-                    text = text % {
-                        str(i + 1): content for i, content in enumerate(subst)
-                    }
+                    text = text % {str(i + 1): content for i, content in enumerate(subst)}
                 else:
                     text = text % tuple(subst)
             text += "".join(self.parse_json_obj(data.get("extra", [])))
@@ -77,7 +73,7 @@ class Minecraft(commands.Cog):
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
-        self.connections = dict()
+        self.connections = {}
         self.messages = {}
         self.parser = MinecraftTextParser()
 
@@ -100,14 +96,9 @@ class Minecraft(commands.Cog):
                     )
                 )
             if session.position_and_look:
-                content.append(
-                    "X: %.1f, Y: %.1f, Z: %.1f"
-                    % (
-                        session.position_and_look.x,
-                        session.position_and_look.y,
-                        session.position_and_look.z,
-                    )
-                )
+                pos = session.position_and_look
+                content.append(f"X: {pos.x:.1f}, Y: {pos.y:.1f}, Z: {pos.z:.1f}")
+
             await ctx.send("\n".join(content))
         else:
             await ctx.send("You are not connected to a Minecraft server!")
@@ -118,17 +109,11 @@ class Minecraft(commands.Cog):
         port = self.config.servers["default"]["port"]
 
         def handle_exception(exc, exc_info):
-            self.bot.loop.create_task(
-                session.channel.send(
-                    f"Exception occured in Minecraft connection: {str(exc)}"
-                )
-            )
+            self.bot.loop.create_task(session.channel.send(f"Exception occured in Minecraft connection: {str(exc)}"))
             self.connections.pop(ctx.channel.id)
 
         def handle_exit():
-            self.bot.loop.create_task(
-                session.channel.send("Connection to Minecraft has been closed.")
-            )
+            self.bot.loop.create_task(session.channel.send("Connection to Minecraft has been closed."))
             self.connections.pop(ctx.channel.id)
 
         connection = Connection(
@@ -156,21 +141,11 @@ class Minecraft(commands.Cog):
         def handle_position_and_look(position_and_look_packet):
             session.position_and_look = position_and_look_packet
 
-        connection.register_packet_listener(
-            handle_chat, clientbound.play.ChatMessagePacket
-        )
-        connection.register_packet_listener(
-            handle_join, clientbound.play.JoinGamePacket
-        )
-        connection.register_packet_listener(
-            handle_health, clientbound.play.UpdateHealthPacket
-        )
-        connection.register_packet_listener(
-            handle_respawn, clientbound.play.RespawnPacket
-        )
-        connection.register_packet_listener(
-            handle_position_and_look, clientbound.play.PlayerPositionAndLookPacket
-        )
+        connection.register_packet_listener(handle_chat, clientbound.play.ChatMessagePacket)
+        connection.register_packet_listener(handle_join, clientbound.play.JoinGamePacket)
+        connection.register_packet_listener(handle_health, clientbound.play.UpdateHealthPacket)
+        connection.register_packet_listener(handle_respawn, clientbound.play.RespawnPacket)
+        connection.register_packet_listener(handle_position_and_look, clientbound.play.PlayerPositionAndLookPacket)
 
     @mc.command()
     async def chat(self, ctx, *, message):
@@ -192,7 +167,7 @@ class Minecraft(commands.Cog):
             await ctx.send("respawning...")
 
     async def handle_chat_async(self, session, chat_packet):
-        message = "(%s): %s" % (
+        message = "({}): {}".format(
             chat_packet.field_string("position"),
             self.parser.parse(chat_packet.json_data),
         )

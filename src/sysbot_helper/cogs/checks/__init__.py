@@ -4,9 +4,7 @@ from discord.ext.commands.errors import CheckFailure
 
 def is_sudo():
     async def predicate(ctx):
-        if not await ctx.bot.is_owner(ctx.author) and not ctx.groups.in_group(
-            ctx.author.id, "sudo"
-        ):
+        if not await ctx.bot.is_owner(ctx.author) and not ctx.groups.in_group(ctx.author.id, "sudo"):
             raise NotOwner("You are not owner or sudo.")
         return True
 

@@ -22,16 +22,16 @@ from .utils import DiscordTextParser
 
 def body_get(body, name):
     field = body.get(name, "")
-    if type(field) is bytes:
+    if isinstance(field, bytes):
         return field.decode("utf8")
-    if type(field) is web.FileField:
+    if isinstance(field, web.FileField):
         return field.file.read().decode("utf8")
     return field
 
 
 def body_get_bytes(body, name):
     field = body.get(name, b"")
-    if type(field) is web.FileField:
+    if isinstance(field, web.FileField):
         return field.file.read()
     return field
 
@@ -122,9 +122,7 @@ class DiscordHandler:
             for embed in data.pop("embeds"):
                 embeds.append(embed_from_dict(embed))
 
-        send_message = self._send_message_common(
-            channel_id, content=content, embeds=embeds, files=files
-        )
+        send_message = self._send_message_common(channel_id, content=content, embeds=embeds, files=files)
         if wait:
             return await send_message
 
@@ -144,9 +142,7 @@ class DiscordHandler:
 
         files = []
         try:
-            eml: EmailMessage = message_from_string(
-                self.body_get(body, "email"), policy=email.policy.default
-            )
+            eml: EmailMessage = message_from_string(self.body_get(body, "email"), policy=email.policy.default)
             eml_body = eml.get_body()
             if eml_body:
                 md = markdownify.markdownify(eml_body.get_content())
@@ -154,10 +150,8 @@ class DiscordHandler:
 
             for attachment in eml.iter_attachments():
                 value = attachment.get_payload(decode=True)
-                if value and type(value) is bytes:
-                    files.append(
-                        File(BytesIO(value), filename=attachment.get_filename())
-                    )
+                if value and isinstance(value, bytes):
+                    files.append(File(BytesIO(value), filename=attachment.get_filename()))
 
         except Exception:
             content.append("Cannot parse email body!")
@@ -194,7 +188,6 @@ class DiscordHandler:
         file = File(BytesIO(data), filename=filename)
 
         return await self._send_message_common(channel_id, files=[file])
-
 
     async def _send_message_common(self, channel_id, **kwargs):
         try:

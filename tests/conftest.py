@@ -1,6 +1,8 @@
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator, Any
+from typing import Any
+
 import pytest
 import yaml
 
@@ -8,9 +10,7 @@ import yaml
 @pytest.fixture
 def temporary_configuration_file_path() -> Generator[Path, None, None]:
     """Generates a temporary configuration YAML file for testing bot instantiation."""
-    temporary_directory: tempfile.TemporaryDirectory[str] = (
-        tempfile.TemporaryDirectory()
-    )
+    temporary_directory: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()
     configuration_file_path: Path = Path(temporary_directory.name) / "config_test.yml"
 
     mock_configuration: dict[str, Any] = {

@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
 from discord.ext import commands
-from zoneinfo import ZoneInfo
 
 
 class Time(commands.Cog):
@@ -25,7 +25,7 @@ class Time(commands.Cog):
         return datetime.now(zone)
 
     def template_variables(self, ctx):
-        result = {"now": self.server_now(ctx), "utcnow": datetime.now(timezone.utc)}
+        result = {"now": self.server_now(ctx), "utcnow": datetime.now(UTC)}
 
         for name, tz in self.config.extras.items():
             result[f"now_{name}"] = datetime.now(ZoneInfo(tz))

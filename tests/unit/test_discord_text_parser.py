@@ -1,4 +1,5 @@
 import unittest
+
 from sysbot_helper.cogs.utils.parser import DiscordTextParser, Post
 
 

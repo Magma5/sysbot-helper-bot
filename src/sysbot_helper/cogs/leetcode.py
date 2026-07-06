@@ -59,9 +59,7 @@ class Leetcode(commands.Cog):
         headers = {"content-type": "application/json"}
 
         async with aiohttp.ClientSession(headers=headers) as session:
-            async with session.post(
-                "https://leetcode.com/graphql/", json=request
-            ) as response:
+            async with session.post("https://leetcode.com/graphql/", json=request) as response:
                 if response.ok:
                     response = await response.json()
                     challenge = response["data"]["activeDailyCodingChallengeQuestion"]
@@ -88,9 +86,7 @@ class Leetcode(commands.Cog):
             message = await ch.send(
                 f"**LeetCode Daily Challenge**\nDate: {date}\n#{frontend_id}: **[{difficulty}]** {title}\nLink: {link}"
             )
-            await message.create_thread(
-                name=f"LeetCode {frontend_id} ({weekday})", auto_archive_duration=1440
-            )
+            await message.create_thread(name=f"LeetCode {frontend_id} ({weekday})", auto_archive_duration=1440)
 
     @scheduled("1-/10 * * * *")
     async def leetcode_update(self):

@@ -30,9 +30,7 @@ class ReactMatcher:
             return False
 
         for attachment in message.attachments:
-            if attachment.content_type and self._re_match(
-                pattern, attachment.content_type
-            ):
+            if attachment.content_type and self._re_match(pattern, attachment.content_type):
                 return True
         return False
 
@@ -142,7 +140,7 @@ class ReactConfig:
                 self.rules[k] = kwargs.pop(k)
 
         # The remaining keys are all actions
-        self.actions = ensure_list(kwargs.pop("actions", dict()))
+        self.actions = ensure_list(kwargs.pop("actions", {}))
         self.actions.insert(0, dict(**kwargs))
 
     async def match_helper_bool(self, fn, message, expected):
@@ -232,9 +230,4 @@ class Autoreact(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        await asyncio.gather(
-            *(
-                self.do_auto_react(message, config)
-                for config in self.config.react_configs
-            )
-        )
+        await asyncio.gather(*(self.do_auto_react(message, config) for config in self.config.react_configs))

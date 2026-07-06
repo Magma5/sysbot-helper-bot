@@ -27,9 +27,7 @@ class Dm(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: Message):
         if message.channel.type != ChannelType.private:
-            if not (
-                self.config.forward_mentions and self.bot.user.mentioned_in(message)
-            ):
+            if not (self.config.forward_mentions and self.bot.user.mentioned_in(message)):
                 return
         if message.channel.id in self.config.channels:
             return
@@ -37,9 +35,7 @@ class Dm(commands.Cog):
             return
 
         channel = self.bot.get_partial_messageable(self.config.channels[0])
-        content = self.bot.template_engine.render_file(
-            "dm/dm.md", {"message": message, "embeds": message.embeds}
-        )
+        content = self.bot.template_engine.render_file("dm/dm.md", {"message": message, "embeds": message.embeds})
         await channel.send(content)
 
     @commands.Cog.listener("on_message")
@@ -90,11 +86,7 @@ class Dm(commands.Cog):
             respond_reaction = "#️⃣"
 
         # Check if they are valid (Cannot send DM to a bot)
-        if (
-            not target
-            or (isinstance(target, User) and target.bot)
-            or target.id in self.config.channels
-        ):
+        if not target or (isinstance(target, User) and target.bot) or target.id in self.config.channels:
             return await message.delete()
 
         try:

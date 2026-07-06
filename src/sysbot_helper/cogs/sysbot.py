@@ -32,7 +32,7 @@ class Sysbot(commands.Cog):
 
         if isinstance(error, ApplicationCommandInvokeError):
             cause = error.__cause__
-            if isinstance(cause, (ConnectionError, AttributeError)):
+            if isinstance(cause, ConnectionError | AttributeError):
                 # Reply the name of the error
                 msg = f"Connection to switch may be down. Try again later.\nError: {cause.__class__.__name__}"
                 await ctx.send(msg)
@@ -43,9 +43,7 @@ class Sysbot(commands.Cog):
         raise error
 
     async def connect(self):
-        self.reader, self.writer = await asyncio.open_connection(
-            self.config.ip, self.config.port
-        )
+        self.reader, self.writer = await asyncio.open_connection(self.config.ip, self.config.port)
 
     async def send_command(self, *args):
         logging.info("Send switch command: %s", repr(args))
@@ -58,9 +56,7 @@ class Sysbot(commands.Cog):
     async def screen(
         self,
         ctx,
-        action: Option(
-            str, "Action for screen, on or off", choices=["on", "off"], required=True
-        ),
+        action: Option(str, "Action for screen, on or off", choices=["on", "off"], required=True),
         delay: Option(
             int,
             "Number of seconds to wait before running the command",
@@ -70,9 +66,7 @@ class Sysbot(commands.Cog):
     ):
         # Check if command needs schedule
         if delay > 0:
-            await ctx.respond(
-                f"Screen command is scheduled to run after {delay} seconds."
-            )
+            await ctx.respond(f"Screen command is scheduled to run after {delay} seconds.")
             await asyncio.sleep(delay)
         else:
             await ctx.respond("Screen command will run shortly.")

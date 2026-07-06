@@ -24,9 +24,7 @@ class MarkdownDecoration(AIOGramMarkdownDecoration):
 markdown_decoration = MarkdownDecoration()
 
 
-def unparse_entities(
-    message: Message, text_decoration: TextDecoration = markdown_decoration
-) -> str:
+def unparse_entities(message: Message, text_decoration: TextDecoration = markdown_decoration) -> str:
     text = message.text or message.caption or ""
     entities = message.entities or message.caption_entities or []
     return text_decoration.unparse(text=text, entities=entities)

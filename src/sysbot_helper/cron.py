@@ -18,9 +18,9 @@ class CronFieldType(Enum):
     DAY_OF_WEEK = auto()
 
 
-_MONTH_NAMES: dict[str, int] = {
-    name.lower(): index for index, name in enumerate(calendar.month_name) if name
-} | {name.lower(): index for index, name in enumerate(calendar.month_abbr) if name}
+_MONTH_NAMES: dict[str, int] = {name.lower(): index for index, name in enumerate(calendar.month_name) if name} | {
+    name.lower(): index for index, name in enumerate(calendar.month_abbr) if name
+}
 
 _DAY_NAMES: dict[str, int] = {
     "sun": 0,
@@ -100,9 +100,7 @@ class HashedCronResolver:
             target_datetime = datetime.now()
 
         resolved_tokens: list[str] = []
-        for index, (field_type, min_val, max_val, aliases) in enumerate(
-            cls.FIELD_SPECIFICATIONS
-        ):
+        for index, (field_type, min_val, max_val, aliases) in enumerate(cls.FIELD_SPECIFICATIONS):
             token: str = tokens[index]
             period_start_timestamp: int = cls._get_period_start_timestamp(
                 field_type=field_type,
@@ -170,9 +168,7 @@ class HashedCronResolver:
 
             step_int: int = int(step_interval) if step_interval.isdigit() else 1
             max_start: int = (
-                minimum_field_value + step_int - 1
-                if base_expression.strip().upper() == "H"
-                else maximum_field_value
+                minimum_field_value + step_int - 1 if base_expression.strip().upper() == "H" else maximum_field_value
             )
             resolved_base: str = cls.resolve_token(
                 token_expression=base_expression,
@@ -222,17 +218,11 @@ class HashedCronResolver:
         elif field_type == CronFieldType.MINUTE:
             period_datetime = target_datetime.replace(minute=0, second=0, microsecond=0)
         elif field_type == CronFieldType.HOUR:
-            period_datetime = target_datetime.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            period_datetime = target_datetime.replace(hour=0, minute=0, second=0, microsecond=0)
         elif field_type == CronFieldType.DAY_OF_MONTH:
-            period_datetime = target_datetime.replace(
-                day=1, hour=0, minute=0, second=0, microsecond=0
-            )
+            period_datetime = target_datetime.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         elif field_type == CronFieldType.MONTH:
-            period_datetime = target_datetime.replace(
-                month=1, day=1, hour=0, minute=0, second=0, microsecond=0
-            )
+            period_datetime = target_datetime.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
         elif field_type == CronFieldType.DAY_OF_WEEK:
             monday_offset: int = target_datetime.weekday()
             period_datetime = (target_datetime - timedelta(days=monday_offset)).replace(
@@ -244,7 +234,7 @@ class HashedCronResolver:
     @staticmethod
     def _compute_stable_hash(job_name: Any, period_start_timestamp: int) -> int:
         """Computes a process-independent, cross-server 32-bit integer hash using zlib.crc32."""
-        seed_bytes: bytes = f"{job_name}_{period_start_timestamp}".encode("utf-8")
+        seed_bytes: bytes = f"{job_name}_{period_start_timestamp}".encode()
         return zlib.crc32(seed_bytes)
 
     @staticmethod
@@ -307,9 +297,7 @@ class CronItem:
         self.max_value: int = max_value
         self.range_from: int = min_value
         self.range_to: int = max_value
-        self.aliases: dict[str, int] = {
-            name.lower(): number for name, number in (aliases or {}).items()
-        }
+        self.aliases: dict[str, int] = {name.lower(): number for name, number in (aliases or {}).items()}
         self.is_day_of_week: bool = is_day_of_week
         self.is_wildcard: bool = False
 
@@ -340,12 +328,8 @@ class CronItem:
                 )
 
             # Wrap-around range (e.g. Fri-Mon -> 5-1)
-            is_within_wrap_range = (target_value >= normalized_start) or (
-                target_value <= normalized_end
-            )
-            return is_within_wrap_range and (
-                (target_value - normalized_start) % self.interval == 0
-            )
+            is_within_wrap_range = (target_value >= normalized_start) or (target_value <= normalized_end)
+            return is_within_wrap_range and ((target_value - normalized_start) % self.interval == 0)
 
         is_within_range = range_start <= target_value <= range_end
         return is_within_range and ((target_value - range_start) % self.interval == 0)
@@ -357,14 +341,10 @@ class CronItem:
         if "/" in expression_to_parse:
             expression_to_parse, interval_string = expression_to_parse.split("/", 1)
             if not interval_string.isdigit():
-                raise ValueError(
-                    f"Invalid interval step '{interval_string}' in expression '{item_expression}'"
-                )
+                raise ValueError(f"Invalid interval step '{interval_string}' in expression '{item_expression}'")
             self.interval = int(interval_string)
             if self.interval < 1:
-                raise ValueError(
-                    f"Interval step must be >= 1 in expression '{item_expression}'"
-                )
+                raise ValueError(f"Interval step must be >= 1 in expression '{item_expression}'")
 
         if expression_to_parse == "*":
             self.is_wildcard = self.interval == 1
@@ -373,14 +353,10 @@ class CronItem:
         elif "-" in expression_to_parse:
             range_from_string, range_to_string = expression_to_parse.split("-", 1)
             self.range_from = (
-                self._validate_and_convert_value(range_from_string)
-                if range_from_string.strip()
-                else self.min_value
+                self._validate_and_convert_value(range_from_string) if range_from_string.strip() else self.min_value
             )
             self.range_to = (
-                self._validate_and_convert_value(range_to_string)
-                if range_to_string.strip()
-                else self.max_value
+                self._validate_and_convert_value(range_to_string) if range_to_string.strip() else self.max_value
             )
         else:
             start_value: int = self._validate_and_convert_value(expression_to_parse)
@@ -392,9 +368,7 @@ class CronItem:
                 self.range_to = start_value
 
         if self.range_from > self.range_to and not self.is_day_of_week:
-            raise ValueError(
-                f"Invalid range bounds: {self.range_from}-{self.range_to} in '{item_expression}'"
-            )
+            raise ValueError(f"Invalid range bounds: {self.range_from}-{self.range_to} in '{item_expression}'")
 
     def _validate_and_convert_value(self, value_string: str) -> int:
         """Converts string value or alias to integer and validates range limits."""
@@ -407,12 +381,8 @@ class CronItem:
         else:
             raise ValueError(f"Invalid integer value or alias: '{value_string}'")
 
-        if integer_value < self.min_value or (
-            self.max_value is not None and integer_value > self.max_value
-        ):
-            raise ValueError(
-                f"Value '{integer_value}' out of allowed bounds [{self.min_value}, {self.max_value}]"
-            )
+        if integer_value < self.min_value or (self.max_value is not None and integer_value > self.max_value):
+            raise ValueError(f"Value '{integer_value}' out of allowed bounds [{self.min_value}, {self.max_value}]")
 
         return integer_value
 
@@ -492,38 +462,24 @@ class CronExpression:
         # Standard cron day_of_week: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
         current_day_of_week: int = (target_datetime.weekday() + 1) % 7
 
-        second_match: bool = any(
-            item.match(target_datetime.second) for item in self.second
-        )
-        minute_match: bool = any(
-            item.match(target_datetime.minute) for item in self.minute
-        )
+        second_match: bool = any(item.match(target_datetime.second) for item in self.second)
+        minute_match: bool = any(item.match(target_datetime.minute) for item in self.minute)
         hour_match: bool = any(item.match(target_datetime.hour) for item in self.hour)
-        month_match: bool = any(
-            item.match(target_datetime.month) for item in self.month
-        )
+        month_match: bool = any(item.match(target_datetime.month) for item in self.month)
 
-        day_of_month_match: bool = any(
-            item.match(target_datetime.day) for item in self.day
-        )
-        day_of_week_match: bool = any(
-            item.match(current_day_of_week) for item in self.day_of_week
-        )
+        day_of_month_match: bool = any(item.match(target_datetime.day) for item in self.day)
+        day_of_week_match: bool = any(item.match(current_day_of_week) for item in self.day_of_week)
 
         # Check POSIX rule: if both DOM and DOW are restricted (not *), use OR logic. Otherwise use AND logic.
         day_of_month_restricted: bool = not any(item.is_wildcard for item in self.day)
-        day_of_week_restricted: bool = not any(
-            item.is_wildcard for item in self.day_of_week
-        )
+        day_of_week_restricted: bool = not any(item.is_wildcard for item in self.day_of_week)
 
         if day_of_month_restricted and day_of_week_restricted:
             date_match: bool = day_of_month_match or day_of_week_match
         else:
             date_match: bool = day_of_month_match and day_of_week_match
 
-        return (
-            second_match and minute_match and hour_match and month_match and date_match
-        )
+        return second_match and minute_match and hour_match and month_match and date_match
 
     def _build_field_items(self, expression_string: str) -> None:
         """Parses expression tokens into CronItem instances (standardized to 6 fields internally)."""
@@ -553,9 +509,7 @@ class CronExpression:
         self.hour = [CronItem.Hour(token) for token in hour_token.split(",")]
         self.day = [CronItem.Day(token) for token in day_token.split(",")]
         self.month = [CronItem.Month(token) for token in month_token.split(",")]
-        self.day_of_week = [
-            CronItem.DayOfWeek(token) for token in day_of_week_token.split(",")
-        ]
+        self.day_of_week = [CronItem.DayOfWeek(token) for token in day_of_week_token.split(",")]
 
     def __str__(self) -> str:
         all_fields = [
@@ -566,9 +520,5 @@ class CronExpression:
             self.month,
             self.day_of_week,
         ]
-        active_fields = (
-            all_fields if self.has_explicit_seconds_field else all_fields[1:]
-        )
-        return " ".join(
-            ",".join(str(item) for item in field_items) for field_items in active_fields
-        )
+        active_fields = all_fields if self.has_explicit_seconds_field else all_fields[1:]
+        return " ".join(",".join(str(item) for item in field_items) for field_items in active_fields)

@@ -13,9 +13,7 @@ class Announcement(CogSendError):
         rendered = ctx.template_engine.render_file(template, kwargs)
 
         parser = DiscordTextParser(rendered)
-        resp = parser.make_response(
-            color=channel.guild.get_member(ctx.bot.user.id).color
-        )
+        resp = parser.make_response(color=channel.guild.get_member(ctx.bot.user.id).color)
         await channel.send(**resp)
 
     @slash_command()

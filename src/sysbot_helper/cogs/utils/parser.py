@@ -1,6 +1,7 @@
 import re
 from collections import defaultdict
 from contextlib import suppress
+from typing import Any
 
 import discord
 import frontmatter
@@ -10,9 +11,9 @@ from sysbot_helper.utils import apply_obj_data, embed_from_dict
 
 
 class Post:
-    def __init__(self, content, metadata={}):
+    def __init__(self, content: str, metadata: dict[str, Any] | None = None) -> None:
         self.content = content
-        self.metadata = defaultdict(dict) | metadata
+        self.metadata = defaultdict(dict) | (metadata or {})
 
         self.command_options = self.metadata.pop("command", {})
 
@@ -30,7 +31,7 @@ class Post:
         with suppress(KeyError):
             self.metadata["image"]["url"] = self.metadata.pop("image-url")
 
-        if type(self.metadata.get("color")) is str:
+        if isinstance(self.metadata.get("color"), str):
             self.metadata["color"] = int(self.metadata["color"], 16)
 
         self.repeat = self.metadata.pop("repeat", 1)
@@ -43,7 +44,7 @@ class Post:
             self.menu_id = slugify(self.menu_title)
 
         # Process fields
-        self.fields = []
+        self.fields: list[tuple[str, str]] = []
         self.inline = self.metadata.pop("inline", True)
 
         if self.title is None:
@@ -67,22 +68,18 @@ class Post:
 
                 split = section.split("\n", 1)
                 if len(split) == 2:
-                    self.fields.append(split)
+                    self.fields.append((split[0], split[1]))
 
-    def is_embed(self):
+    def is_embed(self) -> bool:
         return "title" in self.metadata
 
-    def make_embed(self, **attrs):
+    def make_embed(self, **attrs: Any) -> discord.Embed:
         if self.title is None:
             return discord.Embed(description=self.content)
 
         params = {"description": self.description} | self.metadata | attrs
 
-        params_set = {
-            k: v
-            for k, v in params.items()
-            if k.startswith("set_") and isinstance(v, (dict, list))
-        }
+        params_set = {k: v for k, v in params.items() if k.startswith("set_") and isinstance(v, dict | list)}
 
         embed = embed_from_dict(params)
 
@@ -96,77 +93,65 @@ class Post:
 
 
 class DiscordTextParser:
-    def __init__(self, text, fail_ok=False):
+    def __init__(self, text: str, fail_ok: bool = False) -> None:
         self.posts = self._load_posts(text)
 
     @property
-    def command_options(self):
+    def command_options(self) -> dict[str, Any]:
         return self.metadata.get("command_options", {})
 
     @property
-    def post(self):
-        if len(self.posts) > 1:
-            return self.posts[1]
+    def post(self) -> Post:
         return self.posts[0]
 
     @property
-    def metadata(self):
+    def metadata(self) -> dict[str, Any]:
         return self.post.metadata
 
     @property
-    def menu_id(self):
+    def menu_id(self) -> str | None:
         return self.post.menu_id
 
     @property
-    def menu_title(self):
+    def menu_title(self) -> str | None:
         return self.post.menu_title
 
-    def _load_posts(self, text):
-        """Parse the given text as a list of multiple posts."""
+    def _load_posts(self, text: str) -> list[Post]:
+        """Splits text into multi-frontmatter document chunks and parses each post cleanly."""
+        lines = text.splitlines()
+        post_chunks: list[str] = []
+        current_chunk_lines: list[str] = []
 
-        handlers = [
-            frontmatter.JSONHandler,
-            frontmatter.YAMLHandler,
-            frontmatter.TOMLHandler,
-        ]
+        for i, line in enumerate(lines):
+            is_boundary = line.strip() == "---"
+            is_next_line_yaml_key = i + 1 < len(lines) and bool(re.match(r"^[a-zA-Z0-9_\-]+:\s*", lines[i + 1].strip()))
 
-        posts = []
+            if is_boundary and is_next_line_yaml_key and current_chunk_lines:
+                chunk_str = "\n".join(current_chunk_lines).strip()
+                if chunk_str:
+                    post_chunks.append(chunk_str)
+                current_chunk_lines = [line]
+            else:
+                current_chunk_lines.append(line)
 
-        current_post = []
-        current_handler = None
+        if current_chunk_lines:
+            chunk_str = "\n".join(current_chunk_lines).strip()
+            if chunk_str:
+                post_chunks.append(chunk_str)
 
-        for line in text.split("\n"):
-            if current_handler is None:
-                for handler in handlers:
-                    if handler and handler.FM_BOUNDARY.match(line):
-                        current_handler = handler
-                        post = "\n".join(current_post)
-                        current_post.clear()
+        posts: list[Post] = []
+        for chunk in post_chunks:
+            try:
+                parsed = frontmatter.loads(chunk)
+                posts.append(Post(content=parsed.content, metadata=parsed.metadata))
+            except ValueError:
+                posts.append(Post(content=chunk))
 
-                        try:
-                            parsed = frontmatter.loads(post)
-                            posts.append(Post(parsed.content, parsed.metadata))
-                        except ValueError:
-                            posts.append(Post(post))
-                        break
+        return posts or [Post(content=text)]
 
-            elif current_handler.FM_BOUNDARY.match(line):
-                current_handler = None
-            current_post.append(line)
-
-        # Guarantee to have at least one post
-        post = "\n".join(current_post)
-        try:
-            parsed = frontmatter.loads(post)
-            posts.append(Post(parsed.content, parsed.metadata))
-        except ValueError:
-            posts.append(Post(post))
-
-        return posts
-
-    def make_response(self, **kwargs):
-        content = []
-        embeds = []
+    def make_response(self, **kwargs: Any) -> dict[str, Any]:
+        content: list[str] = []
+        embeds: list[discord.Embed] = []
         for post in self.posts:
             for _ in range(post.repeat):
                 if not post.is_embed():
@@ -177,12 +162,12 @@ class DiscordTextParser:
         return {"content": "\n".join(content).strip(), "embeds": embeds}
 
     @classmethod
-    def from_file(cls, filename):
+    def from_file(cls, filename: str) -> "DiscordTextParser":
         with open(filename, encoding="utf8") as f:
             data = f.read()
 
         return cls(data)
 
     @classmethod
-    def convert_to_response(cls, text):
+    def convert_to_response(cls, text: str) -> dict[str, Any]:
         return cls(text).make_response()

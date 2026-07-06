@@ -25,7 +25,7 @@ class BullshitData:
 
     @property
     def quotes(self):
-        return list(zip(self.author, self.saying))
+        return list(zip(self.author, self.saying, strict=False))
 
     @classmethod
     def from_file(cls, fn="res/spam.yml"):
@@ -92,15 +92,11 @@ class Spam(CogSendError):
         for i in range(count):
             if count >= 10 and time() - last_update > 10:
                 last_update = time()
-                await updates.edit(
-                    f"Spamming #{channel.name}... Progress: {i + 1}/{count}"
-                )
+                await updates.edit(f"Spamming #{channel.name}... Progress: {i + 1}/{count}")
 
             message = generator.generate_text("sysbot", randint(2, 8))
             await channel.send(message.strip())
             await asyncio.sleep(0.5)
 
         if count >= 10:
-            await updates.edit(
-                f"Spamming {channel.name}... Progress: {i + 1}/{count} Done!"
-            )
+            await updates.edit(f"Spamming {channel.name}... Progress: {i + 1}/{count} Done!")

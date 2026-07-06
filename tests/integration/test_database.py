@@ -1,22 +1,18 @@
 import os
+from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import AsyncGenerator
+
 import pytest
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-
-from sysbot_helper.cogs.models import Base, TelegramMapping, User, Experience
+from sysbot_helper.cogs.models import Base, Experience, TelegramMapping, User
 
 
 @pytest.fixture
-async def database_session_factory() -> (
-    AsyncGenerator[sessionmaker[AsyncSession], None]
-):
+async def database_session_factory() -> AsyncGenerator[sessionmaker[AsyncSession], None]:
     """Provides an isolated database session factory using SQLite in-memory or Postgres from environment."""
-    database_url: str = os.getenv(
-        "POSTGRES_TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:"
-    )
+    database_url: str = os.getenv("POSTGRES_TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
     async_engine: AsyncEngine = create_async_engine(database_url)
 
@@ -56,9 +52,7 @@ async def test_telegram_mapping_create_read_update_delete(
         await session.commit()
 
     async with database_session_factory() as session:
-        statement = select(TelegramMapping).where(
-            TelegramMapping.telegram_chat == 111111111
-        )
+        statement = select(TelegramMapping).where(TelegramMapping.telegram_chat == 111111111)
         query_result = await session.execute(statement)
         inserted_record: TelegramMapping | None = query_result.scalars().first()
 
@@ -73,9 +67,7 @@ async def test_telegram_mapping_create_read_update_delete(
         await session.commit()
 
     async with database_session_factory() as session:
-        statement = select(TelegramMapping).where(
-            TelegramMapping.telegram_chat == 111111111
-        )
+        statement = select(TelegramMapping).where(TelegramMapping.telegram_chat == 111111111)
         query_result = await session.execute(statement)
         updated_record: TelegramMapping | None = query_result.scalars().first()
 
@@ -86,9 +78,7 @@ async def test_telegram_mapping_create_read_update_delete(
         await session.commit()
 
     async with database_session_factory() as session:
-        statement = select(TelegramMapping).where(
-            TelegramMapping.telegram_chat == 111111111
-        )
+        statement = select(TelegramMapping).where(TelegramMapping.telegram_chat == 111111111)
         query_result = await session.execute(statement)
         deleted_record: TelegramMapping | None = query_result.scalars().first()
 
@@ -125,9 +115,7 @@ async def test_user_record_upsert_logic(
         assert user_record is not None
         assert user_record.name == "TestUser"
 
-        updated_command_context: MockCommandContext = MockCommandContext(
-            123456789, "UpdatedTestUser"
-        )
+        updated_command_context: MockCommandContext = MockCommandContext(123456789, "UpdatedTestUser")
         await User.update(updated_command_context, session)
         await session.commit()
 

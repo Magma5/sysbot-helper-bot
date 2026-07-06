@@ -8,16 +8,14 @@ import yaml
 from .bot import Bot
 from .schedule import scheduled
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
-)
+__all__ = ["Bot", "scheduled"]
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
 
 def bot_main():
-    parser = argparse.ArgumentParser(
-        description="Multi functional bot originally developed to help sysbot helpers."
-    )
+    parser = argparse.ArgumentParser(description="Multi functional bot originally developed to help sysbot helpers.")
     parser.add_argument(
         "config_file",
         nargs="+",
@@ -25,9 +23,7 @@ def bot_main():
         default="config.yml",
         help="Config file(s) to use for the bot.",
     )
-    parser.add_argument(
-        "--alembic", nargs=argparse.REMAINDER, help="Invoke alembic command."
-    )
+    parser.add_argument("--alembic", nargs=argparse.REMAINDER, help="Invoke alembic command.")
 
     # Run argument parser
     args = parser.parse_args()
@@ -40,7 +36,6 @@ def bot_main():
         asyncio.run(bot_start(args.config_file))
     except KeyboardInterrupt:
         log.info("Shutdown signal received (SIGINT). Exiting cleanly.")
-
 
 
 def run_alembic(config_files: list[Path], alembic_argv):
@@ -61,9 +56,7 @@ def run_alembic(config_files: list[Path], alembic_argv):
 
         config_file_path = options.config
         if isinstance(config_file_path, list):
-            config_file_path = (
-                config_file_path[0] if config_file_path else "alembic.ini"
-            )
+            config_file_path = config_file_path[0] if config_file_path else "alembic.ini"
         elif config_file_path is None:
             config_file_path = "alembic.ini"
 

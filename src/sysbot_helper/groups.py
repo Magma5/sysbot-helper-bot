@@ -21,7 +21,9 @@ def serialize_sets(obj):
 class Groups:
     ALL_GROUP = "all"
 
-    def __init__(self, config={}, save_file=None):
+    def __init__(self, config=None, save_file=None):
+        if config is None:
+            config = {}
         self.group_names: dict[str, int] = {}
         self.groups: list[Group] = []
 

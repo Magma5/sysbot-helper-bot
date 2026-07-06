@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from random import Random
 from struct import Struct
 
@@ -19,7 +19,7 @@ class Luck(commands.Cog):
         salt=b"luck\x00\x00\x00\x00",
     ):
         struct = Struct("<Q")
-        day = time.replace(tzinfo=timezone.utc).timestamp() // period
+        day = time.replace(tzinfo=UTC).timestamp() // period
         seed_user = struct.pack(user_id)
         seed_day = struct.pack(int(day))
         seed = salt + seed_user + seed_day
@@ -32,10 +32,7 @@ class Luck(commands.Cog):
 
         stars_length = len(stars) - 1  # Must be >= 2
         rating_length = len(levels) // stars_length
-        rating_sums = [
-            sum(rating_nums[i * stars_length : (i + 1) * stars_length])
-            for i in range(rating_length)
-        ]
+        rating_sums = [sum(rating_nums[i * stars_length : (i + 1) * stars_length]) for i in range(rating_length)]
         rating_star = [stars[::-1][x] for x in rating_sums]
         return "".join(rating_star)
 
@@ -57,15 +54,11 @@ class Luck(commands.Cog):
             now = time_cog.server_now(ctx)
         else:
             now = datetime.now()
-        return self.get_luck(
-            id, now, self.config.mu, self.config.sigma, self.config.max_luck
-        )
+        return self.get_luck(id, now, self.config.mu, self.config.sigma, self.config.max_luck)
 
     def get_rating_by_id(self, ctx, id):
         luck = self.get_luck_by_id(ctx, id)
-        return self.get_rating(
-            luck, self.config.rating_levels, self.config.rating_stars
-        )
+        return self.get_rating(luck, self.config.rating_levels, self.config.rating_stars)
 
     def user_luck(self, ctx):
         return self.get_luck_by_id(ctx, ctx.author.id)

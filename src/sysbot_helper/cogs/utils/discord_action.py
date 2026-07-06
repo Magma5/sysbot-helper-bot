@@ -54,9 +54,7 @@ class DiscordMessage:
         if sticker:
             sticker_file = await bot.download(sticker)
             if sticker.is_animated:
-                discord_msg.add_file(
-                    sticker_file, f"{sticker.file_unique_id}.gz"
-                )
+                discord_msg.add_file(sticker_file, f"{sticker.file_unique_id}.gz")
             else:
                 img = Image.open(sticker_file)
                 img.thumbnail((160, 160), Image.ANTIALIAS)
@@ -84,9 +82,7 @@ class DiscordMessage:
         video_note = message.video_note
         if video_note:
             video_note_file = await bot.download(video_note)
-            discord_msg.add_file(
-                video_note_file, f"{video_note.file_unique_id}.mp4"
-            )
+            discord_msg.add_file(video_note_file, f"{video_note.file_unique_id}.mp4")
 
         voice = message.voice
         if voice:

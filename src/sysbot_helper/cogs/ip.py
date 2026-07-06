@@ -23,14 +23,10 @@ class Ip(commands.Cog):
     async def ip(self, ctx, count: int = 1):
         count = max(1, count)
         ip = cycle(self.ip6_func)
-        await ctx.send(
-            "\n".join(map(to_ipv6, sorted(next(ip)() for _ in range(count))))
-        )
+        await ctx.send("\n".join(map(to_ipv6, sorted(next(ip)() for _ in range(count)))))
 
     @commands.command()
     async def ip4(self, ctx, count: int = 1):
         count = max(1, count)
         ip = cycle(self.ip4_func)
-        await ctx.send(
-            "\n".join(map(to_ipv4, sorted(next(ip)() for _ in range(count))))
-        )
+        await ctx.send("\n".join(map(to_ipv4, sorted(next(ip)() for _ in range(count)))))

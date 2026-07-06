@@ -42,9 +42,7 @@ class Admin(CogSendError):
                 overwrite.send_messages = False
             elif action == ChannelAction.UNLOCK:
                 overwrite.send_messages = None
-            await channel.set_permissions(
-                channel.guild.default_role, overwrite=overwrite
-            )
+            await channel.set_permissions(channel.guild.default_role, overwrite=overwrite)
 
     @slash_command()
     @is_sudo()
@@ -52,15 +50,11 @@ class Admin(CogSendError):
         name = name.strip()
 
         # Check if channel names need to change
-        channels = [
-            channel for channel in self.bot_channels(ctx) if channel.name != name
-        ]
+        channels = [channel for channel in self.bot_channels(ctx) if channel.name != name]
 
         summary = ["Father, I will set these name for you.", ""]
         for channel in channels:
-            summary.append(
-                f"#{channel.name} ({channel.guild.name}) -> {name}"
-            )
+            summary.append(f"#{channel.name} ({channel.guild.name}) -> {name}")
         await ctx.respond("\n".join(summary))
 
         # Edit the channel names and send an announcement
@@ -72,9 +66,7 @@ class Admin(CogSendError):
                 if announcement:
                     await announcement.do_announce(ctx, channel, "admin/change.md")
             except Exception as e:
-                await ctx.send(
-                    f"⛔ Can't edit channel #{channel.name} ({channel.guild.name}): {str(e)}"
-                )
+                await ctx.send(f"⛔ Can't edit channel #{channel.name} ({channel.guild.name}): {str(e)}")
 
     @property
     def votelock_remain(self):
@@ -82,9 +74,7 @@ class Admin(CogSendError):
 
     def votelock_expire(self):
         self.votelock_list = {
-            k: v
-            for k, v in self.votelock_list.items()
-            if time() - v[0] <= self.config.vote_valid_seconds
+            k: v for k, v in self.votelock_list.items() if time() - v[0] <= self.config.vote_valid_seconds
         }
 
     def votelock_clear(self):
@@ -95,21 +85,13 @@ class Admin(CogSendError):
         self.votelock_expire()
 
         if ctx.author.id in self.votelock_list:
-            await ctx.send(
-                f"You have already voted! Use {ctx.prefix}votecancel to cancel your vote."
-            )
+            await ctx.send(f"You have already voted! Use {ctx.prefix}votecancel to cancel your vote.")
         elif self.votelock_remain > 1:
-            await ctx.send(
-                f"You have voted to lock the bot channels. {self.votelock_remain - 1} more votes is needed."
-            )
+            await ctx.send(f"You have voted to lock the bot channels. {self.votelock_remain - 1} more votes is needed.")
         else:
-            await ctx.send(
-                "You have voted to lock the bot channels. Channel will be locked shortly."
-            )
+            await ctx.send("You have voted to lock the bot channels. Channel will be locked shortly.")
             self.votelock_clear()
-            return await self.do_channel_action(
-                self.bot_channels(ctx), ChannelAction.LOCK
-            )
+            return await self.do_channel_action(self.bot_channels(ctx), ChannelAction.LOCK)
 
         self.votelock_list[ctx.author.id] = time(), ctx.author.name, ctx.guild.name
 
@@ -120,9 +102,7 @@ class Admin(CogSendError):
 
         content = ["Votelock user list:"]
         for timestamp, author, guild in self.votelock_list.values():
-            content.append(
-                f"{author} ({guild}): {time() - timestamp:.0f}s ago"
-            )
+            content.append(f"{author} ({guild}): {time() - timestamp:.0f}s ago")
 
         await ctx.send("\n".join(content))
 
@@ -131,9 +111,7 @@ class Admin(CogSendError):
         self.votelock_expire()
         if ctx.author.id in self.votelock_list:
             self.votelock_list.pop(ctx.author.id)
-            await ctx.send(
-                f"You vote has been removed. {self.votelock_remain} more votes is needed."
-            )
+            await ctx.send(f"You vote has been removed. {self.votelock_remain} more votes is needed.")
         else:
             await ctx.send(f"You have not voted! Use {ctx.prefix}votelock to vote.")
 
@@ -176,9 +154,7 @@ class Admin(CogSendError):
             try:
                 await self.do_channel_action(channel, ChannelAction.LOCK)
             except HTTPException as e:
-                await ctx.send(
-                    f"⛔ Can't lock #{channel.name} ({channel.guild.name}): {str(e)}"
-                )
+                await ctx.send(f"⛔ Can't lock #{channel.name} ({channel.guild.name}): {str(e)}")
 
     @slash_command()
     @is_sudo()
@@ -194,22 +170,16 @@ class Admin(CogSendError):
             try:
                 await self.do_channel_action(channel, ChannelAction.UNLOCK)
             except HTTPException as e:
-                await ctx.send(
-                    f"⛔ Can't unlock #{channel.name} ({channel.guild.name}): {str(e)}"
-                )
+                await ctx.send(f"⛔ Can't unlock #{channel.name} ({channel.guild.name}): {str(e)}")
 
     @commands.group(invoke_without_command=True)
     @commands.has_permissions(administrator=True)
     async def add(self, ctx, channel: TextChannel = None):
         chan = channel or ctx.channel
         if ctx.groups.in_group(chan.id, "sysbots"):
-            return await ctx.send(
-                f"{chan.mention} is already added to bot channels list!"
-            )
+            return await ctx.send(f"{chan.mention} is already added to bot channels list!")
         ctx.groups.add_member_save("sysbots", chan.id)
-        await ctx.send(
-            f"{chan.mention} has been added. You will now get announcements in this channel."
-        )
+        await ctx.send(f"{chan.mention} has been added. You will now get announcements in this channel.")
 
     @add.command()
     @commands.has_permissions(administrator=True)
@@ -218,9 +188,7 @@ class Admin(CogSendError):
         if not ctx.groups.in_group(chan.id, "sysbots"):
             return await ctx.send(f"{chan.mention} is not added to the bot channels!")
         ctx.groups.remove_member_save("sysbots", chan.id)
-        await ctx.send(
-            f"{chan.mention} has been removed. You will no longer get announcements in this channel."
-        )
+        await ctx.send(f"{chan.mention} has been removed. You will no longer get announcements in this channel.")
 
     @add.command(aliases=("list",))
     @is_sudo()

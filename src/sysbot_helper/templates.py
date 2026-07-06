@@ -1,9 +1,8 @@
-import functools
 import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
@@ -33,8 +32,8 @@ class TemplateEngine:
 
     def __init__(
         self,
-        template_dirs: Optional[list[Union[str, Path]]] = None,
-        extra_templates: Optional[dict[str, str]] = None,
+        template_dirs: list[str | Path] | None = None,
+        extra_templates: dict[str, str] | None = None,
     ):
         loaders = []
 
@@ -49,9 +48,7 @@ class TemplateEngine:
 
         # Default fallback to 'templates' if it exists and wasn't already added
         default_dir = Path("templates")
-        if default_dir.is_dir() and not any(
-            Path(d).resolve() == default_dir.resolve() for d in (template_dirs or [])
-        ):
+        if default_dir.is_dir() and not any(Path(d).resolve() == default_dir.resolve() for d in (template_dirs or [])):
             loaders.append(FileSystemLoader(default_dir))
 
         loader = ChoiceLoader(loaders) if len(loaders) > 1 else (loaders[0] if loaders else None)
@@ -68,12 +65,14 @@ class TemplateEngine:
         self.env.filters["regex_replace"] = _filter_regex_replace
         self.env.filters["truncate_length"] = _filter_truncate_length
 
-    # Using @lru_cache on an instance method binds `self` in the cache key.
-    # Because TemplateEngine is managed as a singleton on Bot, this is safe for lifetime reuse.
-    # If TemplateEngine is ever instantiated dynamically per-request or per-cog, use an instance-dict cache instead.
-    @functools.lru_cache(maxsize=256)
+        self._compiled_cache = {}
+
     def _compile_string(self, source: str):
-        return self.env.from_string(source)
+        if source not in self._compiled_cache:
+            if len(self._compiled_cache) >= 256:
+                self._compiled_cache.pop(next(iter(self._compiled_cache)))
+            self._compiled_cache[source] = self.env.from_string(source)
+        return self._compiled_cache[source]
 
     def render_string(self, source: str, context: dict[str, Any]) -> str:
         """Render an inline Jinja2 template string using cached compiled AST."""

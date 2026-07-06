@@ -24,4 +24,3 @@ class Sysinfo(commands.Cog):
                 pass
 
         await ctx.send("\n".join(info))
-

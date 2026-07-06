@@ -73,7 +73,7 @@ class CheckConnection(commands.Cog):
                 # Find checker class and initialize
                 checker_type = CheckerType(checker_config.pop("type"))
                 cls_config = checkers_mapping[checker_type]
-                config = getattr(cls_config, "Config")(**checker_config)
+                config = cls_config.Config(**checker_config)
                 checker = checkers_mapping[checker_type](config)
                 log.info(f"Connection checker {name} loaded with {checker_type}.")
                 self.checkers[name] = checker
@@ -105,7 +105,4 @@ class CheckConnection(commands.Cog):
         await asyncio.sleep(1)
 
     def template_variables(self, ctx):
-        return {
-            name: checker.get_variables()
-            for name, checker in self.config.checkers.items()
-        }
+        return {name: checker.get_variables() for name, checker in self.config.checkers.items()}

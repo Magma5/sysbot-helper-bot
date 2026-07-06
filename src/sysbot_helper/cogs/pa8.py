@@ -36,9 +36,9 @@ class Pa8(commands.Cog):
                 name_mappings[name] = fn
 
         if not query:
-            return dict(content="You can search by Pokemon name or ID in three digits!")
+            return {"content": "You can search by Pokemon name or ID in three digits!"}
         if not name_mappings:
-            return dict(content=f"No {pkm_ext} files loaded!")
+            return {"content": f"No {pkm_ext} files loaded!"}
 
         query = query.lower()
         matches = []
@@ -69,8 +69,8 @@ class Pa8(commands.Cog):
                 content.append(f"{name}")
 
         if files:
-            return dict(content="\n".join(content), files=files)
-        return dict(content=f"{pkm_ext} file not found!")
+            return {"content": "\n".join(content), "files": files}
+        return {"content": f"{pkm_ext} file not found!"}
 
     @commands.command(name="pa8", aliases=("pb8", "pk8"))
     async def pkm_command(self, ctx, *, query: str = None):

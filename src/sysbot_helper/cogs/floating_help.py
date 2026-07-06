@@ -3,7 +3,6 @@ from collections import defaultdict, deque
 from contextlib import suppress
 from dataclasses import dataclass, field
 from time import time
-from typing import Union
 
 from discord.errors import HTTPException
 from discord.ext import commands
@@ -33,7 +32,7 @@ class ChannelInfo:
 
 class FloatingHelp(commands.Cog):
     class Config(BaseModel):
-        channels: dict[Union[int, str], str]
+        channels: dict[int | str, str]
         check_message_history: int = 50
         channel_activity_wait: int = 30
         magic_space: str = "⠀"
@@ -57,9 +56,7 @@ class FloatingHelp(commands.Cog):
 
         # history() returns message from newest to oldest
         async for message in channel.history(limit=self.config.check_message_history):
-            if message.author == self.bot.user and message.content.endswith(
-                self.config.magic_space
-            ):
+            if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
                 yield message
 
     async def refresh_message(self, channel_id):
@@ -68,10 +65,7 @@ class FloatingHelp(commands.Cog):
 
         # Render template
         variables = self.bot.template_variables(channel)
-        content = (
-            self.bot.template_engine.render_string(info.message_text, variables).strip()
-            + self.config.magic_space
-        )
+        content = self.bot.template_engine.render_string(info.message_text, variables).strip() + self.config.magic_space
 
         # Use API to retrieve history, so that it handles deleted messages as well
         last_message_id = 0
@@ -93,9 +87,7 @@ class FloatingHelp(commands.Cog):
                     info.message_history.append(msg)
 
             # Try to clean old messages except the last message
-            while (
-                info.message_history and info.message_history[-1].id != last_message_id
-            ):
+            while info.message_history and info.message_history[-1].id != last_message_id:
                 with suppress(HTTPException):
                     await info.message_history.pop().delete()
 
@@ -145,9 +137,7 @@ class FloatingHelp(commands.Cog):
         if channel.id not in self.channels:
             return
 
-        if message.author == self.bot.user and message.content.endswith(
-            self.config.magic_space
-        ):
+        if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
             return
 
         info = self.channels[channel.id]

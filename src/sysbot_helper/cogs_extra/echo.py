@@ -1,10 +1,10 @@
 import random
-from typing import Optional
 from uuid import uuid4
 
 from discord import ButtonStyle, Interaction, Member, SelectOption, slash_command, ui
 from discord.ext import commands
 from discord.utils import snowflake_time
+
 from sysbot_helper import scheduled
 
 
@@ -15,20 +15,12 @@ class MyView(ui.View):
         max_values=1,  # the maximum number of values that can be selected by the users
         options=[  # the list of options from which users can choose, a required field
             SelectOption(label="Vanilla", description="Pick this if you like vanilla!"),
-            SelectOption(
-                label="Chocolate", description="Pick this if you like chocolate!"
-            ),
-            SelectOption(
-                label="Strawberry", description="Pick this if you like strawberry!"
-            ),
+            SelectOption(label="Chocolate", description="Pick this if you like chocolate!"),
+            SelectOption(label="Strawberry", description="Pick this if you like strawberry!"),
         ],
     )
-    async def select_callback(
-        self, select, interaction
-    ):  # the function called when the user is done selecting options
-        await interaction.response.send_message(
-            f"Awesome! I like {select.values[0]} too!"
-        )
+    async def select_callback(self, select, interaction):  # the function called when the user is done selecting options
+        await interaction.response.send_message(f"Awesome! I like {select.values[0]} too!")
 
 
 class Counter(ui.View):
@@ -79,7 +71,7 @@ class Echo(commands.Cog):
         await channel.send(msg)
 
     @commands.command()
-    async def avatar(self, ctx, user: Optional[Member]):
+    async def avatar(self, ctx, user: Member | None):
         if not user:
             user = ctx.author
         async for a in ctx.channel.history():
@@ -125,10 +117,7 @@ class Echo(commands.Cog):
             counter = None
 
             for component in view.children:
-                if (
-                    isinstance(component, ui.Button)
-                    and component.custom_id == interaction.custom_id
-                ):
+                if isinstance(component, ui.Button) and component.custom_id == interaction.custom_id:
                     component.style = ButtonStyle(random.randint(1, 4))
                     component.label = str(int(component.label) + 1)
                     counter = component.label
@@ -141,10 +130,6 @@ class Echo(commands.Cog):
 
         if interaction.custom_id.startswith("btn reply test"):
             if await self.bot.is_owner(interaction.user):
-                await interaction.response.send_message(
-                    "You are the owner!", ephemeral=True
-                )
+                await interaction.response.send_message("You are the owner!", ephemeral=True)
             else:
-                await interaction.response.send_message(
-                    "You are not the owner!", ephemeral=True
-                )
+                await interaction.response.send_message("You are not the owner!", ephemeral=True)

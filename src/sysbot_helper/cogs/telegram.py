@@ -1,6 +1,5 @@
 import logging
 from asyncio.exceptions import CancelledError
-from typing import Optional, Union
 
 import aiogram
 from aiogram.client.default import DefaultBotProperties
@@ -27,10 +26,10 @@ class ChatLink(BaseModel):
     bot: str
     channel: int
     chat: int
-    discord_message: str = '**{{ message.from_user.first_name or "" }} {{ message.from_user.last_name or "" }}**: {{ text }}'
-    telegram_message: str = (
-        "<b>{{ message.author.name }}</b>: {{message.clean_content | e}}"
+    discord_message: str = (
+        '**{{ message.from_user.first_name or "" }} ' '{{ message.from_user.last_name or "" }}**: {{ text }}'
     )
+    telegram_message: str = "<b>{{ message.author.name }}</b>: {{message.clean_content | e}}"
 
 
 class Telegram(commands.Cog):
@@ -64,7 +63,7 @@ class Telegram(commands.Cog):
         self,
         discord_message: Message,
         telegram_message: TelegramMessage,
-        discord_attachment: Optional[Attachment] = None,
+        discord_attachment: Attachment | None = None,
     ):
         """Save a message mapping to the database, given the message objects."""
 
@@ -82,9 +81,7 @@ class Telegram(commands.Cog):
             session.add(mapping)
             await session.commit()
 
-    async def get_by_discord(
-        self, message: Union[Message, MessageReference]
-    ) -> Optional[int]:
+    async def get_by_discord(self, message: Message | MessageReference) -> int | None:
         """Retrieve the telegram message ID (None if not found) by discord message."""
 
         if message is None:
@@ -110,9 +107,7 @@ class Telegram(commands.Cog):
     async def get_all_by_discord(self, *message: Message) -> list[int]:
         """Retrieve the telegram message IDs given a list of discord messages."""
 
-        stmt = select(TelegramMapping).where(
-            TelegramMapping.discord_message.in_([msg.id for msg in message])
-        )
+        stmt = select(TelegramMapping).where(TelegramMapping.discord_message.in_([msg.id for msg in message]))
 
         async with self.bot.Session() as sess:
             rows = await sess.execute(stmt)
@@ -137,10 +132,7 @@ class Telegram(commands.Cog):
             return result.TelegramMapping.discord_message
 
     def should_handle_discord(self, message: Message):
-        return (
-            message.author != self.bot.user
-            and message.channel.id in self.discord_channels
-        )
+        return message.author != self.bot.user and message.channel.id in self.discord_channels
 
     def should_handle_telegram(self, message: TelegramMessage):
         return message.chat.id in self.telegram_chats
@@ -161,9 +153,7 @@ class Telegram(commands.Cog):
 
         chat_link = self.discord_channels[message.channel.id]
         text = (
-            self.bot.template_engine.render_string(
-                chat_link.telegram_message, {"message": message}
-            )
+            self.bot.template_engine.render_string(chat_link.telegram_message, {"message": message})
             or "(Empty message)"
         )
 
@@ -197,10 +187,7 @@ class Telegram(commands.Cog):
 
         chat_link = self.discord_channels[after.channel.id]
         text = (
-            self.bot.template_engine.render_string(
-                chat_link.telegram_message, {"message": after}
-            )
-            or "(Empty message)"
+            self.bot.template_engine.render_string(chat_link.telegram_message, {"message": after}) or "(Empty message)"
         )
 
         telegram_id = await self.get_by_discord(after)
@@ -255,9 +242,7 @@ class Telegram(commands.Cog):
         if discord_ref:
             discord_msg.update({"reference": channel.get_partial_message(discord_ref)})
 
-        msg = discord_msg.get_send(
-            self.bot, {"message": message, "text": unparse_entities(message)}
-        )
+        msg = discord_msg.get_send(self.bot, {"message": message, "text": unparse_entities(message)})
 
         # Forward the message
         resp = await channel.send(**msg)

@@ -1,9 +1,9 @@
 import unittest
 from datetime import datetime
 from pathlib import Path
+
 from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 from jinja2.sandbox import SecurityError
-
 from sysbot_helper.templates import TemplateEngine
 
 
@@ -23,9 +23,7 @@ class TestTemplatesJinja(unittest.TestCase):
 
         failed_templates: list[tuple[str, str]] = []
         for template_path in template_paths:
-            relative_path_string: str = template_path.relative_to(
-                templates_directory
-            ).as_posix()
+            relative_path_string: str = template_path.relative_to(templates_directory).as_posix()
             try:
                 environment.get_template(relative_path_string)
             except TemplateSyntaxError as syntax_error:
@@ -43,9 +41,7 @@ class TestTemplatesJinja(unittest.TestCase):
     def test_sandboxed_template_engine_prevents_ssti_exploitation(self) -> None:
         """Verifies that SandboxedEnvironment blocks unsafe Python attribute access."""
         template_engine: TemplateEngine = TemplateEngine()
-        dangerous_template_string: str = (
-            "{{ ''.__class__.__mro__[1].__subclasses__() }}"
-        )
+        dangerous_template_string: str = "{{ ''.__class__.__mro__[1].__subclasses__() }}"
 
         with self.assertRaises(SecurityError):
             template_engine.render_string(dangerous_template_string, {})

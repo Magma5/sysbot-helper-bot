@@ -15,6 +15,7 @@ from discord.abc import GuildChannel
 from discord.ext import tasks
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
+
 from .groups import Groups
 from .schedule import ScheduledTask
 from .templates import TemplateEngine
@@ -145,9 +146,7 @@ class Bot(Base):
                     cog_cls = getattr(module, cls_name)
                 except ModuleNotFoundError:
                     # Ignore module loading errors and continue to load the next cog
-                    log.error(
-                        "Unable to import package %s!", module_name, exc_info=True
-                    )
+                    log.error("Unable to import package %s!", module_name, exc_info=True)
                     continue
                 except AttributeError:
                     log.error(
@@ -160,9 +159,7 @@ class Bot(Base):
 
                 # Check if feature is enabled
                 if hasattr(cog_cls, "__feature__"):
-                    feature_check = all(
-                        self.feature_enabled(feature) for feature in cog_cls.__feature__
-                    )
+                    feature_check = all(self.feature_enabled(feature) for feature in cog_cls.__feature__)
                     if not feature_check:
                         log.error(
                             "Unable to load cog: %s! Required features: %s",
@@ -220,14 +217,12 @@ class Bot(Base):
 
         # Generate a fake context without the message object
         if isinstance(ctx, GuildChannel):
-            ctx = SimpleNamespace(
-                bot=self, guild=ctx.guild, channel=ctx, author=self.user
-            )
+            ctx = SimpleNamespace(bot=self, guild=ctx.guild, channel=ctx, author=self.user)
 
         result = self.template_variables_base(ctx)
         for cog in self.cogs.values():
             if hasattr(cog, "template_variables"):
-                fn = getattr(cog, "template_variables")
+                fn = cog.template_variables
                 result.update(fn(ctx))
         return result
 
@@ -247,9 +242,7 @@ class Bot(Base):
     async def loop_scheduled_tasks(self):
         sleep_sec = 60 - time.time() % 60
         await asyncio.sleep(sleep_sec)
-        task = asyncio.create_task(self.invoke_scheduled_tasks()).add_done_callback(
-            self.bg_tasks.discard
-        )
+        task = asyncio.create_task(self.invoke_scheduled_tasks()).add_done_callback(self.bg_tasks.discard)
         self.bg_tasks.add(task)
 
     async def invoke_scheduled_tasks(self, on_ready=False):
@@ -286,9 +279,7 @@ class Bot(Base):
         ctx = await super().get_context(message, cls=cls)
         return self.context_attach_attributes(ctx)
 
-    async def get_application_context(
-        self, interaction: Interaction, cls=ApplicationContext
-    ):
+    async def get_application_context(self, interaction: Interaction, cls=ApplicationContext):
         ctx = await super().get_application_context(interaction, cls=cls)
         return self.context_attach_attributes(ctx)
 
@@ -307,7 +298,4 @@ class Bot(Base):
     def _check_deprecated_configs(self, config):
         deprecated_keys = config.keys() & self.DEPRECATED_CONFIGS
         if deprecated_keys:
-            raise ValueError(
-                "The following configs are deprecated, please update!\n"
-                + "\n".join(deprecated_keys)
-            )
+            raise ValueError("The following configs are deprecated, please update!\n" + "\n".join(deprecated_keys))

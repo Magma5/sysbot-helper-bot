@@ -1,6 +1,7 @@
 import unittest
 from datetime import datetime
-from sysbot_helper.cron import CronItem, CronExpression, HashedCronResolver
+
+from sysbot_helper.cron import CronExpression, CronItem, HashedCronResolver
 
 
 class TestCronExpression(unittest.TestCase):

@@ -35,13 +35,9 @@ class Typing(commands.Cog):
                 base64_string
                 + "."
                 + rand.choice(string.ascii_letters).upper()
-                + "".join(
-                    rand.choice(string.ascii_letters + string.digits) for _ in range(5)
-                )
+                + "".join(rand.choice(string.ascii_letters + string.digits) for _ in range(5))
                 + "."
-                + "".join(
-                    rand.choice(string.ascii_letters + string.digits) for _ in range(27)
-                )
+                + "".join(rand.choice(string.ascii_letters + string.digits) for _ in range(27))
             )
         return token
 
@@ -57,6 +53,4 @@ class Typing(commands.Cog):
             await ctx.send(f"Discord token for {user.name} is: {token}")
         else:
             rand = random.Random(user.id)
-            await ctx.send(
-                f"Discord password for {user.name} is: {rand.choice(passwords)}"
-            )
+            await ctx.send(f"Discord password for {user.name} is: {rand.choice(passwords)}")
