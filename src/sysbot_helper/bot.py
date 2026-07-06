@@ -8,7 +8,6 @@ from types import SimpleNamespace
 
 import yaml
 from discord import ApplicationContext, Intents, Interaction, Message
-from discord.abc import GuildChannel
 from discord.ext import commands
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
@@ -64,7 +63,6 @@ class Bot(Base):
         self.features = set()
         self.scheduler = TaskScheduler(self, scheduled_tasks_timeout=300)
 
-
         # Load database
         with suppress(KeyError):
             self.set_database(config.pop("database_url"))
@@ -88,19 +86,19 @@ class Bot(Base):
         self.register_all_cogs(config)
 
     def guild_config(self, guild):
-        return self.get_config("guild", guild.id)
+        return self.get_config("guild", guild.id if guild else None)
 
     def channel_config(self, channel):
-        return self.get_config("channel", channel.id)
+        return self.get_config("channel", channel.id if channel else None)
 
     def user_config(self, user):
-        return self.get_config("user", user.id)
+        return self.get_config("user", user.id if user else None)
 
     def get_config(self, category, key=None):
         raw_config = self.configs[category]
 
         # Filter all non-int keys as global config
-        config = {k: v for k, v in raw_config if not isinstance(k, int)}
+        config = {k: v for k, v in raw_config.items() if not isinstance(k, int)}
 
         # apply guild specific configs
         if key in raw_config:
@@ -212,9 +210,10 @@ class Bot(Base):
     def template_variables(self, ctx):
         """Search through all registered cogs and load variables"""
 
-        # Generate a fake context without the message object
-        if isinstance(ctx, GuildChannel):
-            ctx = SimpleNamespace(bot=self, guild=ctx.guild, channel=ctx, author=self.user)
+        # Generate a fake context if a channel/messageable is passed directly instead of a full context
+        if not hasattr(ctx, "author"):
+            guild = getattr(ctx, "guild", None)
+            ctx = SimpleNamespace(bot=self, guild=guild, channel=ctx, author=self.user)
 
         result = self.template_variables_base(ctx)
         for cog in self.cogs.values():
@@ -231,7 +230,6 @@ class Bot(Base):
         if motd:
             print(motd)
         await self.scheduler.start()
-
 
     def context_attach_attributes(self, ctx):
         ctx.template_variables = lambda: self.template_variables(ctx)
@@ -263,7 +261,6 @@ class Bot(Base):
         if cog:
             self.scheduler.unregister_cog_tasks(name)
         return cog
-
 
     def _load_cog_module(self, module_name):
         # Try loading cogs from within this package first

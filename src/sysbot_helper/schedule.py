@@ -134,7 +134,6 @@ class TaskScheduler:
         """Invokes all matching scheduled tasks concurrently with timeout boundaries."""
         now = self.bot.now()
         tasks = []
-
         for task_list in self.tasks.values():
             for cog, task in task_list:
                 tasks.append(

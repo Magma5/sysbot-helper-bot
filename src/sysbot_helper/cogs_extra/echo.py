@@ -5,8 +5,6 @@ from discord import ButtonStyle, Interaction, Member, SelectOption, slash_comman
 from discord.ext import commands
 from discord.utils import snowflake_time
 
-from sysbot_helper import scheduled
-
 
 class MyView(ui.View):
     @ui.select(  # the decorator that lets you specify the properties of the select menu
@@ -57,18 +55,6 @@ class Echo(commands.Cog):
         resp.append(f"ID: **{id}**")
         resp.append(f"Creation time: {creation.isoformat()}")
         await ctx.send("\n".join(resp))
-
-    @scheduled("*/17 * * * * *")
-    async def send(self):
-        channel = self.bot.get_partial_messageable(1005693058119122984)
-        msg = self.bot.now().strftime("Current time is: %F %T")
-        await channel.send(msg)
-
-    # @scheduled('0 * * * *')
-    async def send2(self):
-        channel = self.bot.get_partial_messageable(918271067896836128)
-        msg = self.bot.now().strftime("Good morning! It is %-H %p")
-        await channel.send(msg)
 
     @commands.command()
     async def avatar(self, ctx, user: Member | None):
