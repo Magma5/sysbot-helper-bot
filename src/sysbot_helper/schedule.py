@@ -61,6 +61,7 @@ class TaskScheduler:
         self.tasks: dict[str, list[tuple[Any, ScheduledTask]]] = {}
         self.tick_task: asyncio.Task | None = None
         self.bg_tasks: set[asyncio.Task] = set()
+        self._use_seconds_precision: bool = False
 
     def register_cog_tasks(self, cog: Any) -> None:
         """Discovers and registers all ScheduledTasks defined on the cog instance."""
@@ -79,10 +80,12 @@ class TaskScheduler:
 
         if tasks_list:
             self.tasks[cog_name] = tasks_list
+            self._use_seconds_precision = self.has_sub_minute_tasks()
 
     def unregister_cog_tasks(self, cog_name: str) -> None:
         """Removes all tasks registered under the specified cog name."""
         self.tasks.pop(cog_name, None)
+        self._use_seconds_precision = self.has_sub_minute_tasks()
 
     def has_sub_minute_tasks(self) -> bool:
         """Checks if any registered task has explicit sub-minute seconds precision."""
@@ -111,7 +114,7 @@ class TaskScheduler:
         await self.invoke_tasks(on_ready=True)
 
         while not self.bot.is_closed():
-            use_seconds_precision: bool = self.has_sub_minute_tasks()
+            use_seconds_precision: bool = self._use_seconds_precision
 
             if use_seconds_precision:
                 sleep_sec: float = 1 - (time.time() % 1)
