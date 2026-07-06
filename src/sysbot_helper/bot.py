@@ -1,7 +1,4 @@
-import asyncio
 import logging
-import time
-import traceback
 from contextlib import suppress
 from datetime import datetime
 from importlib import import_module
@@ -12,12 +9,12 @@ from types import SimpleNamespace
 import yaml
 from discord import ApplicationContext, Intents, Interaction, Message
 from discord.abc import GuildChannel
-from discord.ext import tasks
+from discord.ext import commands
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
 
 from .groups import Groups
-from .schedule import ScheduledTask
+from .schedule import TaskScheduler
 from .templates import TemplateEngine
 
 log = logging.getLogger(__name__)
@@ -65,8 +62,8 @@ class Bot(Base):
 
         self.template_engine = TemplateEngine(template_dirs=["templates"])
         self.features = set()
-        self.scheduled_tasks_timeout = 300
-        self.bg_tasks = set()
+        self.scheduler = TaskScheduler(self, scheduled_tasks_timeout=300)
+
 
         # Load database
         with suppress(KeyError):
@@ -233,37 +230,8 @@ class Bot(Base):
         motd = self.get_motd()
         if motd:
             print(motd)
-        if not self.loop_scheduled_tasks.is_running():
-            self.loop_scheduled_tasks.start()
-            task = asyncio.create_task(self.invoke_scheduled_tasks(True))
-            task.add_done_callback(self.bg_tasks.discard)
+        await self.scheduler.start()
 
-    @tasks.loop()
-    async def loop_scheduled_tasks(self):
-        sleep_sec = 60 - time.time() % 60
-        await asyncio.sleep(sleep_sec)
-        task = asyncio.create_task(self.invoke_scheduled_tasks()).add_done_callback(self.bg_tasks.discard)
-        self.bg_tasks.add(task)
-
-    async def invoke_scheduled_tasks(self, on_ready=False):
-        now = self.now()
-
-        tasks = []
-        for cog in self.cogs.values():
-            for method in cog.__class__.__dict__.values():
-                if type(method) is not ScheduledTask:
-                    continue
-                tasks.append(
-                    asyncio.wait_for(
-                        method.try_invoke(cog, now, on_ready),
-                        self.scheduled_tasks_timeout,
-                    )
-                )
-
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for result in results:
-            if isinstance(result, Exception):
-                traceback.print_exception(None, value=result, tb=result.__traceback__)
 
     def context_attach_attributes(self, ctx):
         ctx.template_variables = lambda: self.template_variables(ctx)
@@ -285,6 +253,17 @@ class Bot(Base):
 
     async def start(self):
         await super().start(self.token)
+
+    def add_cog(self, cog: commands.Cog) -> None:
+        super().add_cog(cog)
+        self.scheduler.register_cog_tasks(cog)
+
+    def remove_cog(self, name: str) -> commands.Cog | None:
+        cog = super().remove_cog(name)
+        if cog:
+            self.scheduler.unregister_cog_tasks(name)
+        return cog
+
 
     def _load_cog_module(self, module_name):
         # Try loading cogs from within this package first

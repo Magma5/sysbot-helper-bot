@@ -109,7 +109,7 @@ class FloatingHelp(commands.Cog):
         perms = channel.permissions_for(channel.guild.default_role)
         return self.config.skip_locked_channels and perms.send_messages is False
 
-    @scheduled("* * * * *", seconds="*/10")
+    @scheduled("*/10 * * * * *")
     async def auto_refresh(self):
         await self._auto_refresh()
 

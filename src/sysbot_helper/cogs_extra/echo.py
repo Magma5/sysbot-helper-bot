@@ -58,7 +58,7 @@ class Echo(commands.Cog):
         resp.append(f"Creation time: {creation.isoformat()}")
         await ctx.send("\n".join(resp))
 
-    @scheduled("* * * * *", seconds="*/17")
+    @scheduled("*/17 * * * * *")
     async def send(self):
         channel = self.bot.get_partial_messageable(1005693058119122984)
         msg = self.bot.now().strftime("Current time is: %F %T")
