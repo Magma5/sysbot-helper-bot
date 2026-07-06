@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime
-from sysbot_helper.cron import CronItem, CronExpression
+from sysbot_helper.cron import CronItem, CronExpression, HashedCronResolver
 
 
 class TestCronExpression(unittest.TestCase):
@@ -78,6 +78,21 @@ class TestCronExpression(unittest.TestCase):
 
         # 2026-07-07 is a Tuesday (neither matches)
         self.assertFalse(expression.is_now(datetime(2026, 7, 7, 0, 0, 0)))
+
+    def test_hashed_cron_resolution_deterministic_matching(self) -> None:
+        """Verifies that H hashed expressions resolve deterministically with Random(seed)."""
+        seed: str = "leetcode_daily_sync"
+
+        expression_one: CronExpression = CronExpression("H H(10-20) * * *", seed=seed)
+        expression_two: CronExpression = CronExpression("H H(10-20) * * *", seed=seed)
+
+        # Both instances with the same seed must produce identical string expressions
+        self.assertEqual(str(expression_one), str(expression_two))
+
+        # Test bounded range H(10-20) for hour field
+        resolved_hour_item: CronItem = expression_one.hour[0]
+        self.assertGreaterEqual(resolved_hour_item.range_from, 10)
+        self.assertLessEqual(resolved_hour_item.range_to, 20)
 
     def test_invalid_cron_interval_raises_value_error(self) -> None:
         """Verifies that non-numeric or negative intervals raise a ValueError."""
