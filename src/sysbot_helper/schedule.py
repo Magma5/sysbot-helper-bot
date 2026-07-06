@@ -116,10 +116,13 @@ class TaskScheduler:
         while not self.bot.is_closed():
             use_seconds_precision: bool = self._use_seconds_precision
 
+            # Add an intentional 5ms buffer overshoot to sleep calculations to prevent early-wakeup double firing.
+            # Asynchronous sleeps can wake up early due to OS event-loop jitter. Waking up slightly after
+            # the boundary (e.g. at XX.005s) guarantees that the clock has rolled over into the new second/minute.
             if use_seconds_precision:
-                sleep_sec: float = 1 - (time.time() % 1)
+                sleep_sec: float = 1 - (time.time() % 1) + 0.005
             else:
-                sleep_sec = 60 - (time.time() % 60)
+                sleep_sec = 60 - (time.time() % 60) + 0.005
 
             await asyncio.sleep(sleep_sec)
 
