@@ -37,10 +37,23 @@ uv run bot config.yml --alembic upgrade head
 
 ## 4. Run the Test Suite
 
-To verify that everything is configured and working offline:
+The test suite is organized into fast isolated unit tests and integration tests using `pytest`:
 
 ```bash
-uv run python -m unittest tests/test_bot_smoke.py tests/test_templates.py
+# Run isolated fast unit tests (< 0.5s execution)
+uv run pytest tests/unit/
+
+# Run integration tests (Database & Bot Cog loading)
+uv run pytest tests/integration/
+
+# Run all tests with code coverage
+uv run pytest --cov=sysbot_helper tests/
+```
+
+To run integration database tests against a live PostgreSQL instance instead of the default in-memory database, set `POSTGRES_TEST_DATABASE_URL`:
+
+```bash
+POSTGRES_TEST_DATABASE_URL="postgresql+asyncpg://username:password@localhost/dbname" uv run pytest tests/integration/
 ```
 
 ---
