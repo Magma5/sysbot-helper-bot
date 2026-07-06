@@ -3,8 +3,14 @@ from datetime import datetime
 
 
 _MONTH_NAMES: dict[str, int] = {
-    name.lower(): index for index, name in enumerate(calendar.month_name) if name
-} | {name.lower(): index for index, name in enumerate(calendar.month_abbr) if name}
+    name.lower(): index
+    for index, name in enumerate(calendar.month_name)
+    if name
+} | {
+    name.lower(): index
+    for index, name in enumerate(calendar.month_abbr)
+    if name
+}
 
 _DAY_NAMES: dict[str, int] = {
     "sun": 0,
@@ -36,7 +42,12 @@ _PREDEFINED_CRON_SHORTCUTS: dict[str, str] = {
 
 
 class CronItem:
-    """Representation of a single cron expression field (minute, hour, day, month, day-of-week)."""
+    """Representation of a single cron expression field (second, minute, hour, day, month, day-of-week).
+    
+    Intentional Custom Features Supported:
+      - Seconds Field: Factory method `CronItem.Second()` for sub-minute interval scheduling.
+      - Open-Ended Range Shorthand: Expressions like `1-/10` expand `1-` to `1` through `max_value`.
+    """
 
     __slots__ = (
         "interval",
@@ -51,6 +62,7 @@ class CronItem:
 
     @classmethod
     def Second(cls, item_expression: str) -> "CronItem":
+        """Factory method for custom sub-minute / seconds field scheduling (0-59)."""
         return cls(item_expression, 0, 59)
 
     @classmethod
@@ -130,7 +142,10 @@ class CronItem:
         return is_within_range and ((target_value - range_start) % self.interval == 0)
 
     def _parse(self, item_expression: str) -> None:
-        """Parses individual field expression, extracting range bounds and interval steps."""
+        """Parses individual field expression, extracting range bounds and interval steps.
+        
+        Supports open-ended range shorthands (e.g. `1-/10`), defaulting empty bounds to min_value/max_value.
+        """
         expression_to_parse: str = item_expression.strip()
 
         if "/" in expression_to_parse:
@@ -230,9 +245,7 @@ class CronExpression:
                 f"Cron expression requires 5 fields, received {len(expression_tokens)}: '{expression_string}'"
             )
 
-        minute_token, hour_token, day_token, month_token, day_of_week_token = (
-            expression_tokens[:5]
-        )
+        minute_token, hour_token, day_token, month_token, day_of_week_token = expression_tokens[:5]
 
         self.minute: list[CronItem] = [
             CronItem.Minute(sub_token) for sub_token in minute_token.split(",")
@@ -259,26 +272,16 @@ class CronExpression:
         # Standard cron day_of_week: 0 = Sunday, 1 = Monday, ..., 6 = Saturday
         current_day_of_week: int = (target_datetime.weekday() + 1) % 7
 
-        minute_match: bool = any(
-            item.match(target_datetime.minute) for item in self.minute
-        )
+        minute_match: bool = any(item.match(target_datetime.minute) for item in self.minute)
         hour_match: bool = any(item.match(target_datetime.hour) for item in self.hour)
-        month_match: bool = any(
-            item.match(target_datetime.month) for item in self.month
-        )
+        month_match: bool = any(item.match(target_datetime.month) for item in self.month)
 
-        day_of_month_match: bool = any(
-            item.match(target_datetime.day) for item in self.day
-        )
-        day_of_week_match: bool = any(
-            item.match(current_day_of_week) for item in self.day_of_week
-        )
+        day_of_month_match: bool = any(item.match(target_datetime.day) for item in self.day)
+        day_of_week_match: bool = any(item.match(current_day_of_week) for item in self.day_of_week)
 
         # Check POSIX rule: if both DOM and DOW are restricted (not *), use OR logic. Otherwise use AND logic.
         day_of_month_restricted: bool = not any(item.is_wildcard for item in self.day)
-        day_of_week_restricted: bool = not any(
-            item.is_wildcard for item in self.day_of_week
-        )
+        day_of_week_restricted: bool = not any(item.is_wildcard for item in self.day_of_week)
 
         if day_of_month_restricted and day_of_week_restricted:
             date_match: bool = day_of_month_match or day_of_week_match
