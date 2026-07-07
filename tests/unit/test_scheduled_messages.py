@@ -20,7 +20,7 @@ class TestScheduledMessages(unittest.TestCase):
                 MessageConfig(
                     channel=1005693058119122984,
                     cron="H/15 * * * * *",
-                    template="Server time is: {{ now.strftime('%T') }}",
+                    template="Server time is: {{ time.now.strftime('%T') }}",
                 )
             ]
         )

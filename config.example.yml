@@ -14,26 +14,26 @@ cogs:
   commands:
     text:
       hello,hi: |
-        Hello, {{ ctx.author.name }}! Server time: **{{ now.strftime('%-I:%M %p') }}**
+        Hello, {{ ctx.author.name }}! Server time: **{{ time.now.strftime('%-I:%M %p') }}**
       ping: |
         🏓️ Pong! Latency: {{ '%.2fms' | format(ctx.bot.latency * 1000) }}
       /goodmorning: |
         Good morning {{ ctx.author.mention }}!
-        Current server time is **{{ now.strftime("%-I:%M %p") }}**, {{ weekdays[now.weekday()] }}
-        Your luck today: {{ "%.1f/%d" | format(luck, max_luck) }}
+        Current server time is **{{ time.now.strftime("%-I:%M %p") }}**, {{ variables.weekdays[time.now.weekday()] }}
+        Your luck today: {{ "%.1f/%d" | format(luck.luck, luck.max_luck) }}
       /goodnight: |
-        It's {{ now.strftime('%-I %p') }}, good night {{ ctx.author.name }}!
+        It's {{ time.now.strftime('%-I %p') }}, good night {{ ctx.author.name }}!
       today: |
-        Today is {{ now.strftime('%F') }}, {{ weekdays[now.weekday() ]}}
+        Today is {{ time.now.strftime('%F') }}, {{ variables.weekdays[time.now.weekday()] }}
       time: |
-        Current server time: {{ now.strftime('%T') }}
+        Current server time: {{ time.now.strftime('%T') }}
       /luck: |
-        Your luck today: {{ "%.1f/%d" | format(luck, max_luck) }}
-        Rating: {{ luck_rating }}
+        Your luck today: {{ "%.1f/%d" | format(luck.luck, luck.max_luck) }}
+        Rating: {{ luck.luck_rating }}
       /serverluck: |
-        {% if server_luck %}
-        Server luck today: {{ "%.1f/%d" | format(server_luck, max_luck) }}
-        Rating: {{ server_luck_rating }}
+        {% if luck.server_luck %}
+        Server luck today: {{ "%.1f/%d" | format(luck.server_luck, luck.max_luck) }}
+        Rating: {{ luck.server_luck_rating }}
         {% else %}
         This command will only work on a server!
         {% endif %}

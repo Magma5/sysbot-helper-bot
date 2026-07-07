@@ -216,11 +216,12 @@ class Bot(Base):
             guild = getattr(ctx, "guild", None)
             ctx = SimpleNamespace(bot=self, guild=guild, channel=ctx, author=self.user)
 
-        result = LazyContext(self.template_variables_base(ctx))
-        for cog in self.cogs.values():
+        result = self.template_variables_base(ctx)
+        for name, cog in self.cogs.items():
             if hasattr(cog, "template_variables"):
-                fn = cog.template_variables
-                result.update(fn(ctx))
+                namespace_key = name.lower()
+                loaders = cog.template_variables(ctx)
+                result[namespace_key] = LazyContext(loaders)
         return result
 
     def feature_enabled(self, feature):
