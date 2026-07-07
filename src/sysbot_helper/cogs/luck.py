@@ -80,9 +80,9 @@ class Luck(commands.Cog):
 
     def template_variables(self, ctx):
         return {
-            "luck": self.user_luck(ctx),
-            "luck_rating": self.user_rating(ctx),
-            "server_luck": self.server_luck(ctx),
-            "server_luck_rating": self.server_rating(ctx),
+            "luck": lambda: self.user_luck(ctx),
+            "luck_rating": lambda: self.user_rating(ctx),
+            "server_luck": lambda: self.server_luck(ctx),
+            "server_luck_rating": lambda: self.server_rating(ctx),
             "max_luck": self.config.max_luck,
         }

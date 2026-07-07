@@ -24,7 +24,9 @@ class ScheduledMessages(commands.Cog):
 
         def make_callback(msg_cfg: MessageConfig):
             async def callback(self_inst: ScheduledMessages) -> None:
-                channel = self_inst.bot.get_partial_messageable(msg_cfg.channel)
+                channel = self_inst.bot.get_channel(msg_cfg.channel) or self_inst.bot.get_partial_messageable(
+                    msg_cfg.channel
+                )
                 variables = self_inst.bot.template_variables(channel)
                 resolved_content = self_inst.bot.template_engine.render_string(msg_cfg.template, variables).strip()
                 if resolved_content:

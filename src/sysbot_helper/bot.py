@@ -15,6 +15,7 @@ from discord.ext.commands import Context
 from .groups import Groups
 from .schedule import TaskScheduler
 from .templates import TemplateEngine
+from .utils import LazyContext
 
 log = logging.getLogger(__name__)
 
@@ -215,7 +216,7 @@ class Bot(Base):
             guild = getattr(ctx, "guild", None)
             ctx = SimpleNamespace(bot=self, guild=guild, channel=ctx, author=self.user)
 
-        result = self.template_variables_base(ctx)
+        result = LazyContext(self.template_variables_base(ctx))
         for cog in self.cogs.values():
             if hasattr(cog, "template_variables"):
                 fn = cog.template_variables
