@@ -1,7 +1,7 @@
 import asyncio
 
 from discord.ext import commands
-from pydantic.dataclasses import dataclass
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -22,11 +22,10 @@ async def get_user(ctx, session: AsyncSession):
 class Level(commands.Cog):
     __feature__ = ["database"]
 
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         pass
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
         self._locks = {}

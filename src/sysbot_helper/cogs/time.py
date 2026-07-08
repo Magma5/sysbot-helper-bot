@@ -1,17 +1,16 @@
-from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from discord.ext import commands
+from pydantic import BaseModel
 
 
 class Time(commands.Cog):
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         timezone: str = "UTC"
-        extras: dict[str, str] = field(default_factory=dict)
+        extras: dict[str, str] = {}
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 

@@ -11,6 +11,7 @@ from discord import ApplicationContext, Intents, Interaction, Message
 from discord.ext import commands
 from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
+from pydantic import BaseModel, TypeAdapter
 
 from .groups import Groups
 from .schedule import TaskScheduler
@@ -169,21 +170,24 @@ class Bot(Base):
                 if hasattr(cog_cls, "Config"):
                     config_cls = cog_cls.Config
 
-                # Initialize cog config class based on config type
                 if config_cls is None:
                     log.info("Load cog: %s", cls_name)
                     cog_instance = cog_cls(self)
                 else:
-                    # Create a cog instance (with config) and add to the bot
                     log.info("Load cog with config: %s", cls_name)
-                    if cog_config is None:
-                        cog_instance = cog_cls(self, config_cls())
-                    elif isinstance(cog_config, dict):
-                        cog_instance = cog_cls(self, config_cls(**cog_config))
-                    elif isinstance(cog_config, list):
-                        cog_instance = cog_cls(self, config_cls(*cog_config))
+                    if issubclass(config_cls, BaseModel):
+                        config_instance = TypeAdapter(config_cls).validate_python(cog_config or {})
+                        cog_instance = cog_cls(self, config_instance)
+
                     else:
-                        cog_instance = cog_cls(self, config_cls(cog_config))
+                        if cog_config is None:
+                            cog_instance = cog_cls(self, config_cls())
+                        elif isinstance(cog_config, dict):
+                            cog_instance = cog_cls(self, config_cls(**cog_config))
+                        elif isinstance(cog_config, list):
+                            cog_instance = cog_cls(self, config_cls(*cog_config))
+                        else:
+                            cog_instance = cog_cls(self, config_cls(cog_config))
 
                 self.add_cog(cog_instance)
                 self.cog_list.add(cls_name)

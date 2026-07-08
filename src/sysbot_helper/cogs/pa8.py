@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from difflib import get_close_matches
 from glob import glob
 from itertools import chain
@@ -7,17 +6,17 @@ from os.path import basename, splitext
 from discord import File
 from discord.commands.core import slash_command
 from discord.ext import commands
+from pydantic import BaseModel
 
 
 class Pa8(commands.Cog):
-    @dataclass
-    class Config:
-        load_files: list[str] = ("arceusdex/*.pa8",)
+    class Config(BaseModel):
+        load_files: list[str] = ["arceusdex/*.pa8"]
         attachments_limit: int = 2
         search_results_limit: int = 5
         search_score_cutoff: float = 0.1
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 

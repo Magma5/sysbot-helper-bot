@@ -9,6 +9,7 @@ from discord.ext import commands
 from minecraft.networking.connection import Connection
 from minecraft.networking.packets import clientbound, serverbound
 from minecraft.networking.packets.packet import Packet
+from pydantic import BaseModel
 
 log = logging.getLogger(__name__)
 
@@ -66,11 +67,10 @@ class MinecraftSession:
 
 
 class Minecraft(commands.Cog):
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         servers: dict
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
         self.connections = {}

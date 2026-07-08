@@ -1,16 +1,14 @@
-from dataclasses import dataclass
-
 import discord
 from discord import Activity, ActivityType, Bot, Game
 from discord.ext import commands
+from pydantic import BaseModel
 
 
 class Status(commands.Cog):
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         pass
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot: Bot = bot
         self.config = config
 

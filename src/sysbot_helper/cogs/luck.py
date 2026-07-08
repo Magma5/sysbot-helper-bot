@@ -1,9 +1,9 @@
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from random import Random
 from struct import Struct
 
 from discord.ext import commands
+from pydantic import BaseModel
 
 
 class Luck(commands.Cog):
@@ -36,15 +36,14 @@ class Luck(commands.Cog):
         rating_star = [stars[::-1][x] for x in rating_sums]
         return "".join(rating_star)
 
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         mu: int
         sigma: int
         max_luck: int
-        rating_levels: list
+        rating_levels: list[int]
         rating_stars: str = "★☆"
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 

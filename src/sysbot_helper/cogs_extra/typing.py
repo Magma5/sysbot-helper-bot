@@ -1,18 +1,17 @@
 import base64
 import random
 import string
-from dataclasses import dataclass, field
 
 from discord.ext import commands
 from discord.member import Member
+from pydantic import BaseModel
 
 
 class Typing(commands.Cog):
-    @dataclass
-    class Config:
-        channels: list = field(default_factory=list)
+    class Config(BaseModel):
+        channels: list[int] = []
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 

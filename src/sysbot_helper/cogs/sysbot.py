@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from dataclasses import dataclass
 from io import BytesIO
 
 import mss
@@ -9,15 +8,15 @@ from discord.commands.options import Option
 from discord.errors import ApplicationCommandInvokeError
 from discord.ext import commands
 from PIL import Image
+from pydantic import BaseModel
 
 
 class Sysbot(commands.Cog):
-    @dataclass
-    class Config:
+    class Config(BaseModel):
         ip: str
         port: int
 
-    def __init__(self, bot, config):
+    def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
 
