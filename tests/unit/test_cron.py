@@ -44,13 +44,16 @@ class TestCronExpression(unittest.TestCase):
         self.assertFalse(day_of_week_item.match(0))
 
     def test_sunday_alias_and_full_week_range_matching(self) -> None:
-        """Verifies that 0-7 full week range matches all days and does not truncate to Sunday-only."""
-        dow_range: CronItem = CronItem.DayOfWeek("0-7")
+        """Verifies that 0-7 and 1-7 full week ranges match all days and set is_wildcard."""
+        dow_range_0_7: CronItem = CronItem.DayOfWeek("0-7")
+        dow_range_1_7: CronItem = CronItem.DayOfWeek("1-7")
 
         for day in range(7):
-            self.assertTrue(dow_range.match(day), f"Failed to match day {day} for range 0-7")
+            self.assertTrue(dow_range_0_7.match(day), f"Failed to match day {day} for range 0-7")
+            self.assertTrue(dow_range_1_7.match(day), f"Failed to match day {day} for range 1-7")
 
-        self.assertTrue(dow_range.is_wildcard)
+        self.assertTrue(dow_range_0_7.is_wildcard)
+        self.assertTrue(dow_range_1_7.is_wildcard)
 
     def test_hashed_wrap_around_range_resolution(self) -> None:
         """Verifies that H(22-5) wrap-around ranges resolve without raising a randint ValueError."""
@@ -64,7 +67,7 @@ class TestCronExpression(unittest.TestCase):
         self.assertTrue(22 <= resolved_int <= 23 or 0 <= resolved_int <= 5)
 
     def test_hashed_step_range_upper_bound(self) -> None:
-        """Verifies that H(10-30)/5 preserves upper bound 30 in the resolved cron string."""
+        """Verifies that H(10-30)/5 preserves upper bound 30 and constrains start offset to [10, 14]."""
         resolved: str = HashedCronResolver.resolve_token(
             token_expression="H(10-30)/5",
             seed_integer=12345,
@@ -72,6 +75,8 @@ class TestCronExpression(unittest.TestCase):
             maximum_field_value=59,
         )
         self.assertTrue(resolved.endswith("-30/5"), f"Resolved '{resolved}' did not end with -30/5")
+        start_offset: int = int(resolved.split("-")[0])
+        self.assertTrue(10 <= start_offset <= 14, f"Start offset {start_offset} not in window [10, 14]")
 
     def test_cross_field_hash_independence(self) -> None:
         """Verifies that SECOND, MINUTE, and HOUR generate distinct hashes even at identical period timestamps."""

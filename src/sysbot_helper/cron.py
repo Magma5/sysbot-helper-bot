@@ -164,7 +164,7 @@ class HashedCronResolver:
             if range_start_str:
                 lower_limit = cls._parse_bound(range_start_str, aliases)
 
-            max_start: int = lower_limit + step_int - 1 if base_expression.strip().upper() == "H" else upper_limit
+            max_start: int = min(lower_limit + step_int - 1, upper_limit)
             resolved_base: str = cls.resolve_token(
                 token_expression=base_expression,
                 seed_integer=seed_integer,
@@ -185,8 +185,10 @@ class HashedCronResolver:
         upper_bound: int = maximum_field_value
 
         if range_start_string and range_end_string:
-            lower_bound = cls._parse_bound(range_start_string, aliases)
-            upper_bound = cls._parse_bound(range_end_string, aliases)
+            parsed_start: int = cls._parse_bound(range_start_string, aliases)
+            parsed_end: int = cls._parse_bound(range_end_string, aliases)
+            lower_bound = max(lower_bound, parsed_start)
+            upper_bound = min(upper_bound, parsed_end)
 
         random_generator: Random = Random(seed_integer)
         if lower_bound <= upper_bound:
@@ -356,7 +358,11 @@ class CronItem:
             )
             if self.range_from <= self.min_value and self.range_to >= self.max_value:
                 self.is_wildcard = self.interval == 1
-            elif self.is_day_of_week and self.range_from == 0 and self.range_to >= 6:
+            elif self.is_day_of_week and (
+                (self.range_from == 0 and self.range_to >= 6)
+                or (self.range_from == 1 and self.range_to == 7)
+                or (self.range_to - self.range_from + 1 >= 7)
+            ):
                 self.is_wildcard = self.interval == 1
         else:
             start_value: int = self._validate_and_convert_value(expression_to_parse)
