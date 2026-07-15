@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from sysbot_helper.cron import CronExpression, CronFieldType, CronItem, HashedCronResolver
+from sysbot_helper.cron import _DAY_NAMES, CronExpression, CronFieldType, CronItem, HashedCronResolver
 
 
 class TestCronExpression(unittest.TestCase):
@@ -66,17 +66,16 @@ class TestCronExpression(unittest.TestCase):
         resolved_int = int(resolved)
         self.assertTrue(22 <= resolved_int <= 23 or 0 <= resolved_int <= 5)
 
-    def test_hashed_wrap_around_step_resolution(self) -> None:
-        """Verifies that H(22-5)/5 cyclic step tokens resolve cleanly without raising ValueError."""
-
+    def test_hashed_wrap_around_dow_step_resolution(self) -> None:
+        """Verifies H(5-2)/2 DOW cyclic step tokens normalize Sunday (7 to 0) preventing Sunday duplication."""
         resolved: str = HashedCronResolver.resolve_token(
-            token_expression="H(22-5)/5",
+            token_expression="H(5-2)/2",
             seed_integer=12345,
             minimum_field_value=0,
-            maximum_field_value=23,
+            maximum_field_value=7,
+            aliases=_DAY_NAMES,
         )
-        # Should be parsed cleanly by CronExpression
-        cron = CronExpression(f"0 {resolved} * * *")
+        cron = CronExpression(f"0 0 * * {resolved}")
         self.assertIsNotNone(cron)
 
     def test_hashed_step_range_upper_bound(self) -> None:

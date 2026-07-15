@@ -164,6 +164,14 @@ class HashedCronResolver:
             if range_start_str:
                 lower_limit = cls._parse_bound(range_start_str, aliases)
 
+            is_dow: bool = aliases is not None and "sunday" in aliases
+            effective_max: int = 6 if is_dow else maximum_field_value
+            if is_dow:
+                if lower_limit == 7:
+                    lower_limit = 0
+                if upper_limit == 7:
+                    upper_limit = 0
+
             if lower_limit <= upper_limit:
                 max_start: int = min(lower_limit + step_int - 1, upper_limit)
                 resolved_base: str = cls.resolve_token(
@@ -175,20 +183,20 @@ class HashedCronResolver:
                 )
                 return f"{resolved_base}-{upper_limit}/{step_interval}"
 
-            # Cyclic wrap-around range (e.g. H(22-5)/5)
-            span = (maximum_field_value - lower_limit + 1) + (upper_limit - minimum_field_value + 1)
+            # Cyclic wrap-around range (e.g. H(22-5)/5 or H(5-2)/2 for DOW)
+            span = (effective_max - lower_limit + 1) + (upper_limit - minimum_field_value + 1)
             allowed_start_span = min(step_int, span)
 
             random_generator = Random(seed_integer)
             start_offset_within_span = random_generator.randint(0, allowed_start_span - 1)
             start_offset = lower_limit + start_offset_within_span
-            if start_offset > maximum_field_value:
-                start_offset = minimum_field_value + (start_offset - maximum_field_value - 1)
+            if start_offset > effective_max:
+                start_offset = minimum_field_value + (start_offset - effective_max - 1)
 
             if start_offset >= lower_limit:
-                leg1 = f"{start_offset}-{maximum_field_value}/{step_interval}"
+                leg1 = f"{start_offset}-{effective_max}/{step_interval}"
                 next_start = start_offset + step_int
-                second_leg_start = minimum_field_value + (next_start - maximum_field_value - 1)
+                second_leg_start = minimum_field_value + (next_start - effective_max - 1)
                 if second_leg_start <= upper_limit:
                     leg2 = f"{second_leg_start}-{upper_limit}/{step_interval}"
                     return f"{leg1},{leg2}"
