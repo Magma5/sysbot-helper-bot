@@ -1,4 +1,6 @@
+from collections.abc import Iterator, Mapping
 from datetime import datetime
+from functools import cache
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
@@ -6,56 +8,85 @@ from discord.ext import commands
 from pydantic import BaseModel, field_validator
 
 
-class TimeContext(dict[str, datetime]):
+@cache
+def build_timezone_lookup_map() -> dict[str, ZoneInfo]:
+    """Pre-computes an O(1) lookup dictionary mapping normalized timezone identifiers
+    and city shortcuts to ZoneInfo objects.
+    """
+    lookup_map: dict[str, ZoneInfo] = {}
+
+    for timezone_name in available_timezones():
+        try:
+            zone_info = ZoneInfo(timezone_name)
+        except Exception:
+            continue
+
+        # 1. Exact IANA string (e.g. "Asia/Tokyo", "America/New_York")
+        lookup_map[timezone_name] = zone_info
+        lookup_map[timezone_name.lower()] = zone_info
+
+        # 2. Underscore replaced path (e.g. "Asia_Tokyo", "America_Indiana_Indianapolis")
+        underscore_variant = timezone_name.replace("/", "_")
+        lookup_map[underscore_variant] = zone_info
+        lookup_map[underscore_variant.lower()] = zone_info
+
+        # 3. Exact final segment city name (e.g. "Tokyo" -> "Asia/Tokyo", "New_York" -> "America/New_York")
+        city_segment = timezone_name.split("/")[-1]
+        city_lower = city_segment.lower()
+        if city_lower not in lookup_map:
+            lookup_map[city_lower] = zone_info
+
+        city_no_underscore = city_segment.replace("_", "").lower()
+        if city_no_underscore not in lookup_map:
+            lookup_map[city_no_underscore] = zone_info
+
+    return lookup_map
+
+
+def resolve_timezone(key: str, server_timezone: str = "UTC") -> ZoneInfo:
+    """Resolves a timezone string, alias, or city shortcut in O(1) time."""
+    if key == "now":
+        return ZoneInfo(server_timezone)
+    if key == "utcnow":
+        return ZoneInfo("UTC")
+
+    # Direct ZoneInfo lookup
+    try:
+        return ZoneInfo(key)
+    except (KeyError, ValueError, ZoneInfoNotFoundError):
+        pass
+
+    # O(1) normalized lookup map search
+    normalized_key = key.lower().strip()
+    lookup_map = build_timezone_lookup_map()
+
+    if normalized_key in lookup_map:
+        return lookup_map[normalized_key]
+
+    raise KeyError(f"Invalid timezone identifier: '{key}'")
+
+
+class TimeContext(Mapping[str, datetime]):
     """Dynamic context mapping for template variable time and timezone evaluation."""
 
     def __init__(self, server_timezone: str) -> None:
-        super().__init__()
         self.server_timezone: str = server_timezone
 
-    def _resolve_zone(self, key: str) -> ZoneInfo:
-        if key == "now":
-            return ZoneInfo(self.server_timezone)
-
-        if key == "utcnow":
-            return ZoneInfo("UTC")
-
-        # 1. Direct ZoneInfo lookup (e.g. "Asia/Tokyo" or "UTC")
-        try:
-            return ZoneInfo(key)
-        except (KeyError, ValueError, ZoneInfoNotFoundError):
-            pass
-
-        # 2. Iterative underscore replacement for multi-part timezones (e.g. "America_Indiana_Indianapolis")
-        formatted_key: str = key
-        while "_" in formatted_key:
-            formatted_key = formatted_key.replace("_", "/", 1)
-            try:
-                return ZoneInfo(formatted_key)
-            except (KeyError, ValueError, ZoneInfoNotFoundError):
-                continue
-
-        # 3. Case-insensitive city shortcut or suffix lookup (e.g. "New_York", "tokyo", "berlin")
-        normalized_target: str = key.lower().replace("_", "").replace("/", "")
-        for timezone_name in available_timezones():
-            normalized_name: str = timezone_name.lower().replace("_", "").replace("/", "")
-            if normalized_name == normalized_target or normalized_name.endswith(normalized_target):
-                try:
-                    return ZoneInfo(timezone_name)
-                except (KeyError, ValueError, ZoneInfoNotFoundError):
-                    continue
-
-        raise KeyError(f"Invalid timezone identifier: '{key}'")
-
     def __getitem__(self, key: str) -> datetime:
-        zone_info: ZoneInfo = self._resolve_zone(key)
+        zone_info: ZoneInfo = resolve_timezone(key, self.server_timezone)
         return datetime.now(zone_info)
+
+    def __iter__(self) -> Iterator[str]:
+        yield from ("now", "utcnow")
+
+    def __len__(self) -> int:
+        return 2
 
     def __contains__(self, key: object) -> bool:
         if not isinstance(key, str):
             return False
         try:
-            self._resolve_zone(key)
+            resolve_timezone(key, self.server_timezone)
             return True
         except KeyError:
             return False
