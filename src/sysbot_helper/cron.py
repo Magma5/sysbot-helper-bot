@@ -133,7 +133,7 @@ class HashedCronResolver:
     ) -> str:
         """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax."""
         is_dow: bool = aliases is not None and "sunday" in aliases
-        effective_max: int = 6 if is_dow else maximum_field_value
+        effective_max: int = min(maximum_field_value, 6) if is_dow else maximum_field_value
 
         if "," in token_expression:
             sub_tokens: list[str] = token_expression.split(",")

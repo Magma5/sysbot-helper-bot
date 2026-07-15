@@ -66,17 +66,18 @@ class TestCronExpression(unittest.TestCase):
         resolved_int = int(resolved)
         self.assertTrue(22 <= resolved_int <= 23 or 0 <= resolved_int <= 5)
 
-    def test_hashed_wrap_around_dow_step_resolution(self) -> None:
-        """Verifies H(5-2)/2 DOW cyclic step tokens normalize Sunday (7 to 0) preventing Sunday duplication."""
-        resolved: str = HashedCronResolver.resolve_token(
-            token_expression="H(5-2)/2",
-            seed_integer=12345,
-            minimum_field_value=0,
-            maximum_field_value=7,
-            aliases=_DAY_NAMES,
-        )
-        cron = CronExpression(f"0 0 * * {resolved}")
-        self.assertIsNotNone(cron)
+    def test_hashed_dow_step_offset_constraint(self) -> None:
+        """Verifies H/3 on DayOfWeek constrains recursive start offset to [0, 2] without being overwritten by 6."""
+        for seed in range(20):
+            resolved: str = HashedCronResolver.resolve_token(
+                token_expression="H/3",
+                seed_integer=seed,
+                minimum_field_value=0,
+                maximum_field_value=7,
+                aliases=_DAY_NAMES,
+            )
+            start_offset: int = int(resolved.split("-")[0])
+            self.assertTrue(0 <= start_offset <= 2, f"Seed {seed}: start offset {start_offset} not in window [0, 2]")
 
     def test_hashed_step_range_upper_bound(self) -> None:
         """Verifies that H(10-30)/5 preserves upper bound 30 and constrains start offset to [10, 14]."""
