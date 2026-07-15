@@ -132,6 +132,9 @@ class HashedCronResolver:
         aliases: dict[str, int] | None = None,
     ) -> str:
         """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax."""
+        is_dow: bool = aliases is not None and "sunday" in aliases
+        effective_max: int = 6 if is_dow else maximum_field_value
+
         if "," in token_expression:
             sub_tokens: list[str] = token_expression.split(",")
             resolved_sub_tokens: list[str] = [
@@ -157,20 +160,14 @@ class HashedCronResolver:
             range_end_str = pattern_match.group("range_end") if pattern_match else None
             range_start_str = pattern_match.group("range_start") if pattern_match else None
 
-            upper_limit = maximum_field_value
+            upper_limit = effective_max
             lower_limit = minimum_field_value
             if range_end_str:
-                upper_limit = cls._parse_bound(range_end_str, aliases)
+                parsed_end = cls._parse_bound(range_end_str, aliases)
+                upper_limit = 0 if is_dow and parsed_end == 7 else parsed_end
             if range_start_str:
-                lower_limit = cls._parse_bound(range_start_str, aliases)
-
-            is_dow: bool = aliases is not None and "sunday" in aliases
-            effective_max: int = 6 if is_dow else maximum_field_value
-            if is_dow:
-                if lower_limit == 7:
-                    lower_limit = 0
-                if upper_limit == 7:
-                    upper_limit = 0
+                parsed_start = cls._parse_bound(range_start_str, aliases)
+                lower_limit = 0 if is_dow and parsed_start == 7 else parsed_start
 
             if lower_limit <= upper_limit:
                 max_start: int = min(lower_limit + step_int - 1, upper_limit)
@@ -212,23 +209,28 @@ class HashedCronResolver:
         range_end_string: str | None = pattern_match.group("range_end")
 
         lower_bound: int = minimum_field_value
-        upper_bound: int = maximum_field_value
+        upper_bound: int = effective_max
 
         if range_start_string and range_end_string:
-            parsed_start: int = cls._parse_bound(range_start_string, aliases)
-            parsed_end: int = cls._parse_bound(range_end_string, aliases)
-            lower_bound = max(lower_bound, parsed_start)
-            upper_bound = min(upper_bound, parsed_end)
+            parsed_start = cls._parse_bound(range_start_string, aliases)
+            parsed_end = cls._parse_bound(range_end_string, aliases)
+            if is_dow:
+                if parsed_start == 7:
+                    parsed_start = 0
+                if parsed_end == 7:
+                    parsed_end = 0
+            lower_bound = max(minimum_field_value, parsed_start)
+            upper_bound = min(maximum_field_value, parsed_end)
 
-        random_generator: Random = Random(seed_integer)
+        random_generator = Random(seed_integer)
         if lower_bound <= upper_bound:
             deterministic_offset: int = random_generator.randint(lower_bound, upper_bound)
         else:
-            span = (maximum_field_value - lower_bound + 1) + (upper_bound - minimum_field_value + 1)
+            span = (effective_max - lower_bound + 1) + (upper_bound - minimum_field_value + 1)
             offset_within_span = random_generator.randint(0, span - 1)
             deterministic_offset = lower_bound + offset_within_span
-            if deterministic_offset > maximum_field_value:
-                deterministic_offset = minimum_field_value + (deterministic_offset - maximum_field_value - 1)
+            if deterministic_offset > effective_max:
+                deterministic_offset = minimum_field_value + (deterministic_offset - effective_max - 1)
 
         return str(deterministic_offset)
 
