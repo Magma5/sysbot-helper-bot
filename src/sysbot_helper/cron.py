@@ -1,4 +1,5 @@
 import calendar
+import functools
 import re
 import zlib
 from collections.abc import Hashable
@@ -434,6 +435,11 @@ class CronItem:
         return pattern_string
 
 
+@functools.lru_cache(maxsize=1024)
+def _compile_resolved_cron_expression(expression_string: str) -> "CronExpression":
+    return CronExpression(expression_string, seed=None)
+
+
 class CronExpression:
     """Representation of a 5-field or 6-field cron expression with POSIX compliance and Hashed Cron ('H') resolution."""
 
@@ -482,10 +488,7 @@ class CronExpression:
                 job_name=self.seed,
                 target_datetime=target_datetime,
             )
-            resolved_cron_expression: CronExpression = CronExpression(
-                resolved_expression_string,
-                seed=None,
-            )
+            resolved_cron_expression = _compile_resolved_cron_expression(resolved_expression_string)
             return resolved_cron_expression.is_now(target_datetime)
 
         current_day_of_week: int = (target_datetime.weekday() + 1) % 7
