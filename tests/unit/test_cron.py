@@ -66,6 +66,19 @@ class TestCronExpression(unittest.TestCase):
         resolved_int = int(resolved)
         self.assertTrue(22 <= resolved_int <= 23 or 0 <= resolved_int <= 5)
 
+    def test_hashed_wrap_around_step_resolution(self) -> None:
+        """Verifies that H(22-5)/5 cyclic step tokens resolve cleanly without raising ValueError."""
+
+        resolved: str = HashedCronResolver.resolve_token(
+            token_expression="H(22-5)/5",
+            seed_integer=12345,
+            minimum_field_value=0,
+            maximum_field_value=23,
+        )
+        # Should be parsed cleanly by CronExpression
+        cron = CronExpression(f"0 {resolved} * * *")
+        self.assertIsNotNone(cron)
+
     def test_hashed_step_range_upper_bound(self) -> None:
         """Verifies that H(10-30)/5 preserves upper bound 30 and constrains start offset to [10, 14]."""
         resolved: str = HashedCronResolver.resolve_token(

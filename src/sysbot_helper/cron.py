@@ -164,15 +164,37 @@ class HashedCronResolver:
             if range_start_str:
                 lower_limit = cls._parse_bound(range_start_str, aliases)
 
-            max_start: int = min(lower_limit + step_int - 1, upper_limit)
-            resolved_base: str = cls.resolve_token(
-                token_expression=base_expression,
-                seed_integer=seed_integer,
-                minimum_field_value=lower_limit,
-                maximum_field_value=min(max_start, upper_limit),
-                aliases=aliases,
-            )
-            return f"{resolved_base}-{upper_limit}/{step_interval}"
+            if lower_limit <= upper_limit:
+                max_start: int = min(lower_limit + step_int - 1, upper_limit)
+                resolved_base: str = cls.resolve_token(
+                    token_expression=base_expression,
+                    seed_integer=seed_integer,
+                    minimum_field_value=lower_limit,
+                    maximum_field_value=max_start,
+                    aliases=aliases,
+                )
+                return f"{resolved_base}-{upper_limit}/{step_interval}"
+
+            # Cyclic wrap-around range (e.g. H(22-5)/5)
+            span = (maximum_field_value - lower_limit + 1) + (upper_limit - minimum_field_value + 1)
+            allowed_start_span = min(step_int, span)
+
+            random_generator = Random(seed_integer)
+            start_offset_within_span = random_generator.randint(0, allowed_start_span - 1)
+            start_offset = lower_limit + start_offset_within_span
+            if start_offset > maximum_field_value:
+                start_offset = minimum_field_value + (start_offset - maximum_field_value - 1)
+
+            if start_offset >= lower_limit:
+                leg1 = f"{start_offset}-{maximum_field_value}/{step_interval}"
+                next_start = start_offset + step_int
+                second_leg_start = minimum_field_value + (next_start - maximum_field_value - 1)
+                if second_leg_start <= upper_limit:
+                    leg2 = f"{second_leg_start}-{upper_limit}/{step_interval}"
+                    return f"{leg1},{leg2}"
+                return leg1
+            else:
+                return f"{start_offset}-{upper_limit}/{step_interval}"
 
         pattern_match = cls.HASH_TOKEN_PATTERN.match(token_expression.strip())
         if not pattern_match:
@@ -358,11 +380,7 @@ class CronItem:
             )
             if self.range_from <= self.min_value and self.range_to >= self.max_value:
                 self.is_wildcard = self.interval == 1
-            elif self.is_day_of_week and (
-                (self.range_from == 0 and self.range_to >= 6)
-                or (self.range_from == 1 and self.range_to == 7)
-                or (self.range_to - self.range_from + 1 >= 7)
-            ):
+            elif self.is_day_of_week and (self.range_to - self.range_from >= 6):
                 self.is_wildcard = self.interval == 1
         else:
             start_value: int = self._validate_and_convert_value(expression_to_parse)
