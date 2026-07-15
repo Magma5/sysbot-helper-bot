@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from sysbot_helper.cron import CronExpression, CronItem, HashedCronResolver
+from sysbot_helper.cron import CronExpression, CronFieldType, CronItem, HashedCronResolver
 
 
 class TestCronExpression(unittest.TestCase):
@@ -17,7 +17,6 @@ class TestCronExpression(unittest.TestCase):
         """Verifies step evaluation for 5/10 (starts at 5 through 59 step 10)."""
         cron_item: CronItem = CronItem.Minute("5/10")
 
-        # Matching values: 5, 15, 25, 35, 45, 55
         self.assertTrue(cron_item.match(5))
         self.assertTrue(cron_item.match(15))
         self.assertTrue(cron_item.match(25))
@@ -29,7 +28,6 @@ class TestCronExpression(unittest.TestCase):
         """Verifies range with interval step evaluation."""
         cron_item: CronItem = CronItem.Hour("2-10/2")
 
-        # Range is 2 to 10 with interval 2: expected matching hours are 2, 4, 6, 8, 10
         self.assertTrue(cron_item.match(2))
         self.assertTrue(cron_item.match(4))
         self.assertFalse(cron_item.match(3))
@@ -45,39 +43,64 @@ class TestCronExpression(unittest.TestCase):
         self.assertTrue(day_of_week_item.match(1))
         self.assertFalse(day_of_week_item.match(0))
 
-    def test_sunday_alias_matching(self) -> None:
-        """Verifies both 0 and 7 match Sunday."""
-        sunday_item_zero: CronItem = CronItem.DayOfWeek("0")
-        sunday_item_seven: CronItem = CronItem.DayOfWeek("7")
+    def test_sunday_alias_and_full_week_range_matching(self) -> None:
+        """Verifies that 0-7 full week range matches all days and does not truncate to Sunday-only."""
+        dow_range: CronItem = CronItem.DayOfWeek("0-7")
 
-        self.assertTrue(sunday_item_zero.match(0))
-        self.assertTrue(sunday_item_seven.match(0))
+        for day in range(7):
+            self.assertTrue(dow_range.match(day), f"Failed to match day {day} for range 0-7")
+
+        self.assertTrue(dow_range.is_wildcard)
+
+    def test_hashed_wrap_around_range_resolution(self) -> None:
+        """Verifies that H(22-5) wrap-around ranges resolve without raising a randint ValueError."""
+        resolved: str = HashedCronResolver.resolve_token(
+            token_expression="H(22-5)",
+            seed_integer=12345,
+            minimum_field_value=0,
+            maximum_field_value=23,
+        )
+        resolved_int = int(resolved)
+        self.assertTrue(22 <= resolved_int <= 23 or 0 <= resolved_int <= 5)
+
+    def test_hashed_step_range_upper_bound(self) -> None:
+        """Verifies that H(10-30)/5 preserves upper bound 30 in the resolved cron string."""
+        resolved: str = HashedCronResolver.resolve_token(
+            token_expression="H(10-30)/5",
+            seed_integer=12345,
+            minimum_field_value=0,
+            maximum_field_value=59,
+        )
+        self.assertTrue(resolved.endswith("-30/5"), f"Resolved '{resolved}' did not end with -30/5")
+
+    def test_cross_field_hash_independence(self) -> None:
+        """Verifies that SECOND, MINUTE, and HOUR generate distinct hashes even at identical period timestamps."""
+        timestamp = 1700000000
+        sec_hash = HashedCronResolver._compute_stable_hash("job", CronFieldType.SECOND, timestamp)
+        min_hash = HashedCronResolver._compute_stable_hash("job", CronFieldType.MINUTE, timestamp)
+        hr_hash = HashedCronResolver._compute_stable_hash("job", CronFieldType.HOUR, timestamp)
+
+        self.assertNotEqual(sec_hash, min_hash)
+        self.assertNotEqual(min_hash, hr_hash)
+        self.assertNotEqual(sec_hash, hr_hash)
 
     def test_predefined_shortcuts(self) -> None:
         """Verifies expansion of @hourly, @daily, @weekly, @monthly, @yearly."""
         hourly_expression: CronExpression = CronExpression("@hourly")
         daily_expression: CronExpression = CronExpression("@daily")
 
-        # @hourly matches minute 0
         self.assertTrue(hourly_expression.is_now(datetime(2026, 7, 1, 14, 0, 0)))
         self.assertFalse(hourly_expression.is_now(datetime(2026, 7, 1, 14, 15, 0)))
 
-        # @daily matches 00:00:00
         self.assertTrue(daily_expression.is_now(datetime(2026, 7, 1, 0, 0, 0)))
         self.assertFalse(daily_expression.is_now(datetime(2026, 7, 1, 12, 0, 0)))
 
     def test_posix_day_of_month_or_day_of_week_matching(self) -> None:
         """Verifies POSIX OR rule when both DOM and DOW are specified."""
-        # '0 0 1 * Mon' matches if day is 1st OR day is Monday
         expression: CronExpression = CronExpression("0 0 1 * Mon")
 
-        # 2026-07-01 is a Wednesday (DOM 1 matches, DOW does not)
         self.assertTrue(expression.is_now(datetime(2026, 7, 1, 0, 0, 0)))
-
-        # 2026-07-06 is a Monday (DOM 6 does not match, DOW Mon matches)
         self.assertTrue(expression.is_now(datetime(2026, 7, 6, 0, 0, 0)))
-
-        # 2026-07-07 is a Tuesday (neither matches)
         self.assertFalse(expression.is_now(datetime(2026, 7, 7, 0, 0, 0)))
 
     def test_six_field_cron_sub_minute_precision(self) -> None:
@@ -92,7 +115,6 @@ class TestCronExpression(unittest.TestCase):
         tokens: list[str] = resolved_str.split()
         self.assertEqual(len(tokens), 6)
 
-        # First token is resolved second step range e.g. "7-59/15"
         self.assertIn("/15", tokens[0])
         start_sec: int = int(tokens[0].split("-")[0])
 
@@ -101,8 +123,8 @@ class TestCronExpression(unittest.TestCase):
 
     def test_stable_cross_process_crc32_hashing(self) -> None:
         """Verifies that zlib.crc32 hashing is cross-process stable."""
-        hash_one: int = HashedCronResolver._compute_stable_hash("job_a", 170000)
-        hash_two: int = HashedCronResolver._compute_stable_hash("job_a", 170000)
+        hash_one: int = HashedCronResolver._compute_stable_hash("job_a", CronFieldType.MINUTE, 170000)
+        hash_two: int = HashedCronResolver._compute_stable_hash("job_a", CronFieldType.MINUTE, 170000)
 
         self.assertEqual(hash_one, hash_two)
 

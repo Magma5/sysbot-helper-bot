@@ -88,12 +88,15 @@ class TaskScheduler:
         self._use_seconds_precision = self.has_sub_minute_tasks()
 
     def has_sub_minute_tasks(self) -> bool:
-        """Checks if any registered task has explicit sub-minute seconds precision."""
-        for task_list in self.tasks.values():
+        """Checks if any registered task requires sub-minute (seconds) precision ticking."""
+        for task_list in list(self.tasks.values()):
             for _, task in task_list:
                 for cron in task.cron_schedules:
-                    if cron.has_explicit_seconds_field:
-                        return True
+                    if not cron.has_explicit_seconds_field:
+                        continue
+                    for item in cron.second:
+                        if item.is_wildcard or item.interval > 1 or item.range_from != 0 or item.range_to != 0:
+                            return True
         return False
 
     async def start(self) -> None:
@@ -103,22 +106,22 @@ class TaskScheduler:
         self.tick_task = asyncio.create_task(self.run_loop())
 
     def stop(self) -> None:
-        """Stops the scheduler execution tick loop."""
+        """Stops the scheduler execution tick loop and cancels active background tasks."""
         if self.tick_task:
             self.tick_task.cancel()
             self.tick_task = None
+        for bg_task in list(self.bg_tasks):
+            if not bg_task.done():
+                bg_task.cancel()
+        self.bg_tasks.clear()
 
     async def run_loop(self) -> None:
         """Execution tick loop that dynamically adjusts intervals based on seconds precision."""
-        # Fire initial on_ready invoke
         await self.invoke_tasks(on_ready=True)
 
         while not self.bot.is_closed():
             use_seconds_precision: bool = self._use_seconds_precision
 
-            # Add an intentional 5ms buffer overshoot to sleep calculations to prevent early-wakeup double firing.
-            # Asynchronous sleeps can wake up early due to OS event-loop jitter. Waking up slightly after
-            # the boundary (e.g. at XX.005s) guarantees that the clock has rolled over into the new second/minute.
             if use_seconds_precision:
                 sleep_sec: float = 1 - (time.time() % 1) + 0.005
             else:
@@ -134,7 +137,8 @@ class TaskScheduler:
         """Invokes all matching scheduled tasks concurrently with timeout boundaries."""
         now = self.bot.now()
         tasks = []
-        for task_list in self.tasks.values():
+        task_snapshots = list(self.tasks.values())
+        for task_list in task_snapshots:
             for cog, task in task_list:
                 tasks.append(
                     asyncio.wait_for(
@@ -149,6 +153,4 @@ class TaskScheduler:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for result in results:
             if isinstance(result, Exception):
-                import traceback
-
-                traceback.print_exception(None, value=result, tb=result.__traceback__)
+                log.exception("Unhandled exception while executing scheduled task", exc_info=result)

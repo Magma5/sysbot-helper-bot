@@ -8,7 +8,13 @@ sudo: []
 sysbot_channels:
   - 797864915750355016
 cogs:
+  scheduled_messages:
+    messages:
+      - channel: 797864915750355016
+        cron: "H H * * *"
+        template: "Good morning! It is {{ time.now.strftime('%-I:%M %p') }}"
   sysbot:
+
     ip: 192.168.0.1
     port: 6000
   commands:
