@@ -3,9 +3,29 @@ import functools
 import re
 import zlib
 from collections.abc import Hashable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum, auto
 from random import Random
+
+# Standard POSIX cron syntax uses 5 fields (minute, hour, day-of-month, month, day-of-week).
+DEFAULT_CRON_FIELD_COUNT: int = 5
+
+# Extended sub-minute syntax includes an explicit leading seconds field (6 fields total).
+EXTENDED_CRON_FIELD_COUNT: int = 6
+
+# Standard unit definitions for timing calculations
+SECONDS_PER_MINUTE: int = 60
+DAYS_IN_WEEK: int = 7
+
+# POSIX standard represents Sunday as 0.
+SUNDAY_NORMALIZED_INDEX: int = 0
+
+# Many cron implementations allow 7 as an alternative alias for Sunday so expressions like 1-7 (Mon-Sun) work.
+SUNDAY_ALTERNATIVE_INDEX: int = 7
+
+# The highest valid zero-indexed day number (Saturday is 6).
+MAXIMUM_DAY_OF_WEEK_INDEX: int = 6
 
 
 class CronFieldType(Enum):
@@ -19,26 +39,40 @@ class CronFieldType(Enum):
     DAY_OF_WEEK = auto()
 
 
-_MONTH_NAMES: dict[str, int] = {name.lower(): index for index, name in enumerate(calendar.month_name) if name} | {
-    name.lower(): index for index, name in enumerate(calendar.month_abbr) if name
-}
+def _build_month_names_mapping() -> dict[str, int]:
+    """Builds a case-insensitive lookup dictionary mapping month names and abbreviations to 1-indexed integers."""
+    mapping: dict[str, int] = {}
+    for month_index, month_name in enumerate(calendar.month_name):
+        if month_name:
+            mapping[month_name.lower()] = month_index
+    for month_index, month_abbr in enumerate(calendar.month_abbr):
+        if month_abbr:
+            mapping[month_abbr.lower()] = month_index
+    return mapping
 
-_DAY_NAMES: dict[str, int] = {
-    "sun": 0,
-    "sunday": 0,
-    "mon": 1,
-    "monday": 1,
-    "tue": 2,
-    "tuesday": 2,
-    "wed": 3,
-    "wednesday": 3,
-    "thu": 4,
-    "thursday": 4,
-    "fri": 5,
-    "friday": 5,
-    "sat": 6,
-    "saturday": 6,
-}
+
+def _build_day_names_mapping() -> dict[str, int]:
+    """Builds a case-insensitive lookup dictionary mapping weekday names and abbreviations to numeric day indices."""
+    return {
+        "sun": 0,
+        "sunday": 0,
+        "mon": 1,
+        "monday": 1,
+        "tue": 2,
+        "tuesday": 2,
+        "wed": 3,
+        "wednesday": 3,
+        "thu": 4,
+        "thursday": 4,
+        "fri": 5,
+        "friday": 5,
+        "sat": 6,
+        "saturday": 6,
+    }
+
+
+_MONTH_NAMES: dict[str, int] = _build_month_names_mapping()
+_DAY_NAMES: dict[str, int] = _build_day_names_mapping()
 
 _PREDEFINED_CRON_SHORTCUTS: dict[str, str] = {
     "@yearly": "0 0 1 1 *",
@@ -51,6 +85,16 @@ _PREDEFINED_CRON_SHORTCUTS: dict[str, str] = {
 }
 
 
+@dataclass(frozen=True)
+class CronFieldSpecification:
+    """Encapsulates allowed boundary limits and textual alias mappings for a specific cron field type."""
+
+    field_type: CronFieldType
+    minimum_value: int
+    maximum_value: int
+    aliases: dict[str, int]
+
+
 class HashedCronResolver:
     """Resolves 'H' hashed tokens deterministically using process-independent zlib.crc32 hashing."""
 
@@ -60,13 +104,13 @@ class HashedCronResolver:
     )
 
     # Specification defining allowed boundaries and alias mapping per cron field type
-    FIELD_SPECIFICATIONS: list[tuple[CronFieldType, int, int, dict[str, int]]] = [
-        (CronFieldType.SECOND, 0, 59, {}),
-        (CronFieldType.MINUTE, 0, 59, {}),
-        (CronFieldType.HOUR, 0, 23, {}),
-        (CronFieldType.DAY_OF_MONTH, 1, 31, {}),
-        (CronFieldType.MONTH, 1, 12, _MONTH_NAMES),
-        (CronFieldType.DAY_OF_WEEK, 0, 7, _DAY_NAMES),
+    FIELD_SPECIFICATIONS: list[CronFieldSpecification] = [
+        CronFieldSpecification(CronFieldType.SECOND, 0, 59, {}),
+        CronFieldSpecification(CronFieldType.MINUTE, 0, 59, {}),
+        CronFieldSpecification(CronFieldType.HOUR, 0, 23, {}),
+        CronFieldSpecification(CronFieldType.DAY_OF_MONTH, 1, 31, {}),
+        CronFieldSpecification(CronFieldType.MONTH, 1, 12, _MONTH_NAMES),
+        CronFieldSpecification(CronFieldType.DAY_OF_WEEK, 0, 7, _DAY_NAMES),
     ]
 
     @classmethod
@@ -83,42 +127,42 @@ class HashedCronResolver:
         )
 
         tokens: list[str] = normalized_expression.split()
-        if len(tokens) < 5 or job_name is None:
+        if len(tokens) < DEFAULT_CRON_FIELD_COUNT or job_name is None:
             return normalized_expression
 
-        is_five_field: bool = len(tokens) == 5
-        if is_five_field:
+        is_five_field_expression: bool = len(tokens) == DEFAULT_CRON_FIELD_COUNT
+        if is_five_field_expression:
             tokens = ["0"] + tokens
 
         if target_datetime is None:
             target_datetime = datetime.now(UTC)
 
         resolved_tokens: list[str] = []
-        for index, (field_type, min_val, max_val, aliases) in enumerate(cls.FIELD_SPECIFICATIONS):
-            token: str = tokens[index]
+        for index, specification in enumerate(cls.FIELD_SPECIFICATIONS):
+            token_expression: str = tokens[index]
             period_start_timestamp: int = cls._get_period_start_timestamp(
-                field_type=field_type,
+                field_type=specification.field_type,
                 target_datetime=target_datetime,
             )
 
-            combined_seed_integer: int = cls._compute_stable_hash(
+            seed_integer: int = cls._compute_stable_hash(
                 job_name=job_name,
-                field_type=field_type,
+                field_type=specification.field_type,
                 period_start_timestamp=period_start_timestamp,
             )
 
             resolved_token: str = cls.resolve_token(
-                token_expression=token,
-                seed_integer=combined_seed_integer,
-                minimum_field_value=min_val,
-                maximum_field_value=max_val,
-                aliases=aliases,
+                token_expression=token_expression,
+                seed_integer=seed_integer,
+                minimum_field_value=specification.minimum_value,
+                maximum_field_value=specification.maximum_value,
+                aliases=specification.aliases,
             )
             resolved_tokens.append(resolved_token)
 
-        resolved_tokens.extend(tokens[6:])
+        resolved_tokens.extend(tokens[EXTENDED_CRON_FIELD_COUNT:])
 
-        if is_five_field:
+        if is_five_field_expression:
             resolved_tokens = resolved_tokens[1:]
 
         return " ".join(resolved_tokens)
