@@ -177,75 +177,186 @@ class HashedCronResolver:
         aliases: dict[str, int] | None = None,
     ) -> str:
         """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax."""
-        is_dow: bool = aliases is not None and "sunday" in aliases
-        effective_max: int = min(maximum_field_value, 6) if is_dow else maximum_field_value
+        is_day_of_week_field: bool = aliases is not None and "sunday" in aliases
+        effective_maximum_value: int = (
+            min(maximum_field_value, MAXIMUM_DAY_OF_WEEK_INDEX)
+            if is_day_of_week_field
+            else maximum_field_value
+        )
 
         if "," in token_expression:
-            sub_tokens: list[str] = token_expression.split(",")
-            resolved_sub_tokens: list[str] = [
-                cls.resolve_token(
-                    token_expression=sub_token,
-                    seed_integer=seed_integer + sub_index,
-                    minimum_field_value=minimum_field_value,
-                    maximum_field_value=maximum_field_value,
-                    aliases=aliases,
-                )
-                for sub_index, sub_token in enumerate(sub_tokens)
-            ]
-            return ",".join(resolved_sub_tokens)
+            return cls._resolve_comma_separated_token(
+                token_expression=token_expression,
+                seed_integer=seed_integer,
+                minimum_field_value=minimum_field_value,
+                maximum_field_value=maximum_field_value,
+                aliases=aliases,
+            )
 
         if "/" in token_expression:
-            base_expression, step_interval = token_expression.split("/", 1)
-            if "h" not in base_expression.lower():
-                return token_expression
+            return cls._resolve_step_interval_token(
+                token_expression=token_expression,
+                seed_integer=seed_integer,
+                minimum_field_value=minimum_field_value,
+                maximum_field_value=maximum_field_value,
+                effective_maximum_value=effective_maximum_value,
+                aliases=aliases,
+                is_day_of_week_field=is_day_of_week_field,
+            )
 
-            step_int: int = int(step_interval) if step_interval.isdigit() else 1
+        return cls._resolve_single_hash_token(
+            token_expression=token_expression,
+            seed_integer=seed_integer,
+            minimum_field_value=minimum_field_value,
+            maximum_field_value=maximum_field_value,
+            effective_maximum_value=effective_maximum_value,
+            aliases=aliases,
+            is_day_of_week_field=is_day_of_week_field,
+        )
 
-            pattern_match = cls.HASH_TOKEN_PATTERN.match(base_expression.strip())
-            range_end_str = pattern_match.group("range_end") if pattern_match else None
-            range_start_str = pattern_match.group("range_start") if pattern_match else None
+    @classmethod
+    def _resolve_comma_separated_token(
+        cls,
+        token_expression: str,
+        seed_integer: int,
+        minimum_field_value: int,
+        maximum_field_value: int,
+        aliases: dict[str, int] | None,
+    ) -> str:
+        """Resolves comma-separated sub-tokens by applying sequential seed offsets."""
+        sub_tokens: list[str] = token_expression.split(",")
+        resolved_sub_tokens: list[str] = []
+        for sub_index, sub_token in enumerate(sub_tokens):
+            resolved_token = cls.resolve_token(
+                token_expression=sub_token,
+                seed_integer=seed_integer + sub_index,
+                minimum_field_value=minimum_field_value,
+                maximum_field_value=maximum_field_value,
+                aliases=aliases,
+            )
+            resolved_sub_tokens.append(resolved_token)
+        return ",".join(resolved_sub_tokens)
 
-            upper_limit = effective_max
-            lower_limit = minimum_field_value
-            if range_end_str:
-                parsed_end = cls._parse_bound(range_end_str, aliases)
-                upper_limit = 0 if is_dow and parsed_end == 7 else parsed_end
-            if range_start_str:
-                parsed_start = cls._parse_bound(range_start_str, aliases)
-                lower_limit = 0 if is_dow and parsed_start == 7 else parsed_start
+    @classmethod
+    def _resolve_step_interval_token(
+        cls,
+        token_expression: str,
+        seed_integer: int,
+        minimum_field_value: int,
+        maximum_field_value: int,
+        effective_maximum_value: int,
+        aliases: dict[str, int] | None,
+        is_day_of_week_field: bool,
+    ) -> str:
+        """Resolves step interval expressions containing 'H' (e.g. H/15 or H(10-30)/5)."""
+        base_expression, step_interval_string = token_expression.split("/", 1)
+        if "h" not in base_expression.lower():
+            return token_expression
 
-            if lower_limit <= upper_limit:
-                max_start: int = min(lower_limit + step_int - 1, upper_limit)
-                resolved_base: str = cls.resolve_token(
-                    token_expression=base_expression,
-                    seed_integer=seed_integer,
-                    minimum_field_value=lower_limit,
-                    maximum_field_value=max_start,
-                    aliases=aliases,
+        step_interval_value: int = (
+            int(step_interval_string) if step_interval_string.isdigit() else 1
+        )
+
+        pattern_match = cls.HASH_TOKEN_PATTERN.match(base_expression.strip())
+        range_start_string = pattern_match.group("range_start") if pattern_match else None
+        range_end_string = pattern_match.group("range_end") if pattern_match else None
+
+        range_start_limit: int = minimum_field_value
+        range_end_limit: int = effective_maximum_value
+
+        if range_start_string:
+            parsed_start_bound = cls._parse_bound(range_start_string, aliases)
+            range_start_limit = (
+                SUNDAY_NORMALIZED_INDEX
+                if is_day_of_week_field and parsed_start_bound == SUNDAY_ALTERNATIVE_INDEX
+                else parsed_start_bound
+            )
+        if range_end_string:
+            parsed_end_bound = cls._parse_bound(range_end_string, aliases)
+            range_end_limit = (
+                SUNDAY_NORMALIZED_INDEX
+                if is_day_of_week_field and parsed_end_bound == SUNDAY_ALTERNATIVE_INDEX
+                else parsed_end_bound
+            )
+
+        if range_start_limit <= range_end_limit:
+            maximum_start_value: int = min(
+                range_start_limit + step_interval_value - 1, range_end_limit
+            )
+            resolved_base: str = cls.resolve_token(
+                token_expression=base_expression,
+                seed_integer=seed_integer,
+                minimum_field_value=range_start_limit,
+                maximum_field_value=maximum_start_value,
+                aliases=aliases,
+            )
+            return f"{resolved_base}-{range_end_limit}/{step_interval_string}"
+
+        return cls._resolve_cyclic_wrap_around_step_interval(
+            step_interval_value=step_interval_value,
+            step_interval_string=step_interval_string,
+            seed_integer=seed_integer,
+            minimum_field_value=minimum_field_value,
+            range_start_limit=range_start_limit,
+            range_end_limit=range_end_limit,
+            effective_maximum_value=effective_maximum_value,
+        )
+
+    @classmethod
+    def _resolve_cyclic_wrap_around_step_interval(
+        cls,
+        step_interval_value: int,
+        step_interval_string: str,
+        seed_integer: int,
+        minimum_field_value: int,
+        range_start_limit: int,
+        range_end_limit: int,
+        effective_maximum_value: int,
+    ) -> str:
+        """Resolves cyclic wrap-around step intervals such as H(22-5)/5 or H(5-2)/2."""
+        total_span: int = (effective_maximum_value - range_start_limit + 1) + (
+            range_end_limit - minimum_field_value + 1
+        )
+        allowed_start_span: int = min(step_interval_value, total_span)
+
+        random_generator = Random(seed_integer)
+        offset_within_span: int = random_generator.randint(0, allowed_start_span - 1)
+        calculated_start_offset: int = range_start_limit + offset_within_span
+
+        if calculated_start_offset > effective_maximum_value:
+            calculated_start_offset = minimum_field_value + (
+                calculated_start_offset - effective_maximum_value - 1
+            )
+
+        if calculated_start_offset >= range_start_limit:
+            first_segment_expression: str = (
+                f"{calculated_start_offset}-{effective_maximum_value}/{step_interval_string}"
+            )
+            next_start_value: int = calculated_start_offset + step_interval_value
+            second_segment_start: int = minimum_field_value + (
+                next_start_value - effective_maximum_value - 1
+            )
+            if second_segment_start <= range_end_limit:
+                second_segment_expression: str = (
+                    f"{second_segment_start}-{range_end_limit}/{step_interval_string}"
                 )
-                return f"{resolved_base}-{upper_limit}/{step_interval}"
+                return f"{first_segment_expression},{second_segment_expression}"
+            return first_segment_expression
 
-            # Cyclic wrap-around range (e.g. H(22-5)/5 or H(5-2)/2 for DOW)
-            span = (effective_max - lower_limit + 1) + (upper_limit - minimum_field_value + 1)
-            allowed_start_span = min(step_int, span)
+        return f"{calculated_start_offset}-{range_end_limit}/{step_interval_string}"
 
-            random_generator = Random(seed_integer)
-            start_offset_within_span = random_generator.randint(0, allowed_start_span - 1)
-            start_offset = lower_limit + start_offset_within_span
-            if start_offset > effective_max:
-                start_offset = minimum_field_value + (start_offset - effective_max - 1)
-
-            if start_offset >= lower_limit:
-                leg1 = f"{start_offset}-{effective_max}/{step_interval}"
-                next_start = start_offset + step_int
-                second_leg_start = minimum_field_value + (next_start - effective_max - 1)
-                if second_leg_start <= upper_limit:
-                    leg2 = f"{second_leg_start}-{upper_limit}/{step_interval}"
-                    return f"{leg1},{leg2}"
-                return leg1
-            else:
-                return f"{start_offset}-{upper_limit}/{step_interval}"
-
+    @classmethod
+    def _resolve_single_hash_token(
+        cls,
+        token_expression: str,
+        seed_integer: int,
+        minimum_field_value: int,
+        maximum_field_value: int,
+        effective_maximum_value: int,
+        aliases: dict[str, int] | None,
+        is_day_of_week_field: bool,
+    ) -> str:
+        """Resolves non-step single hash tokens like 'H' or 'H(10-30)' into a single numeric value."""
         pattern_match = cls.HASH_TOKEN_PATTERN.match(token_expression.strip())
         if not pattern_match:
             return token_expression
@@ -254,28 +365,32 @@ class HashedCronResolver:
         range_end_string: str | None = pattern_match.group("range_end")
 
         lower_bound: int = minimum_field_value
-        upper_bound: int = effective_max
+        upper_bound: int = effective_maximum_value
 
         if range_start_string and range_end_string:
-            parsed_start = cls._parse_bound(range_start_string, aliases)
-            parsed_end = cls._parse_bound(range_end_string, aliases)
-            if is_dow:
-                if parsed_start == 7:
-                    parsed_start = 0
-                if parsed_end == 7:
-                    parsed_end = 0
-            lower_bound = max(minimum_field_value, parsed_start)
-            upper_bound = min(maximum_field_value, parsed_end)
+            parsed_start_bound = cls._parse_bound(range_start_string, aliases)
+            parsed_end_bound = cls._parse_bound(range_end_string, aliases)
+            if is_day_of_week_field:
+                if parsed_start_bound == SUNDAY_ALTERNATIVE_INDEX:
+                    parsed_start_bound = SUNDAY_NORMALIZED_INDEX
+                if parsed_end_bound == SUNDAY_ALTERNATIVE_INDEX:
+                    parsed_end_bound = SUNDAY_NORMALIZED_INDEX
+            lower_bound = max(minimum_field_value, parsed_start_bound)
+            upper_bound = min(maximum_field_value, parsed_end_bound)
 
         random_generator = Random(seed_integer)
         if lower_bound <= upper_bound:
             deterministic_offset: int = random_generator.randint(lower_bound, upper_bound)
         else:
-            span = (effective_max - lower_bound + 1) + (upper_bound - minimum_field_value + 1)
-            offset_within_span = random_generator.randint(0, span - 1)
+            total_span: int = (effective_maximum_value - lower_bound + 1) + (
+                upper_bound - minimum_field_value + 1
+            )
+            offset_within_span: int = random_generator.randint(0, total_span - 1)
             deterministic_offset = lower_bound + offset_within_span
-            if deterministic_offset > effective_max:
-                deterministic_offset = minimum_field_value + (deterministic_offset - effective_max - 1)
+            if deterministic_offset > effective_maximum_value:
+                deterministic_offset = minimum_field_value + (
+                    deterministic_offset - effective_maximum_value - 1
+                )
 
         return str(deterministic_offset)
 
