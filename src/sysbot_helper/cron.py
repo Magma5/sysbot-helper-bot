@@ -179,9 +179,7 @@ class HashedCronResolver:
         """Resolves a single token like 'H', 'H(10-30)', or 'H/15' into standard numeric cron syntax."""
         is_day_of_week_field: bool = aliases is not None and "sunday" in aliases
         effective_maximum_value: int = (
-            min(maximum_field_value, MAXIMUM_DAY_OF_WEEK_INDEX)
-            if is_day_of_week_field
-            else maximum_field_value
+            min(maximum_field_value, MAXIMUM_DAY_OF_WEEK_INDEX) if is_day_of_week_field else maximum_field_value
         )
 
         if "," in token_expression:
@@ -253,9 +251,7 @@ class HashedCronResolver:
         if "h" not in base_expression.lower():
             return token_expression
 
-        step_interval_value: int = (
-            int(step_interval_string) if step_interval_string.isdigit() else 1
-        )
+        step_interval_value: int = int(step_interval_string) if step_interval_string.isdigit() else 1
 
         pattern_match = cls.HASH_TOKEN_PATTERN.match(base_expression.strip())
         range_start_string = pattern_match.group("range_start") if pattern_match else None
@@ -280,9 +276,7 @@ class HashedCronResolver:
             )
 
         if range_start_limit <= range_end_limit:
-            maximum_start_value: int = min(
-                range_start_limit + step_interval_value - 1, range_end_limit
-            )
+            maximum_start_value: int = min(range_start_limit + step_interval_value - 1, range_end_limit)
             resolved_base: str = cls.resolve_token(
                 token_expression=base_expression,
                 seed_integer=seed_integer,
@@ -324,22 +318,16 @@ class HashedCronResolver:
         calculated_start_offset: int = range_start_limit + offset_within_span
 
         if calculated_start_offset > effective_maximum_value:
-            calculated_start_offset = minimum_field_value + (
-                calculated_start_offset - effective_maximum_value - 1
-            )
+            calculated_start_offset = minimum_field_value + (calculated_start_offset - effective_maximum_value - 1)
 
         if calculated_start_offset >= range_start_limit:
             first_segment_expression: str = (
                 f"{calculated_start_offset}-{effective_maximum_value}/{step_interval_string}"
             )
             next_start_value: int = calculated_start_offset + step_interval_value
-            second_segment_start: int = minimum_field_value + (
-                next_start_value - effective_maximum_value - 1
-            )
+            second_segment_start: int = minimum_field_value + (next_start_value - effective_maximum_value - 1)
             if second_segment_start <= range_end_limit:
-                second_segment_expression: str = (
-                    f"{second_segment_start}-{range_end_limit}/{step_interval_string}"
-                )
+                second_segment_expression: str = f"{second_segment_start}-{range_end_limit}/{step_interval_string}"
                 return f"{first_segment_expression},{second_segment_expression}"
             return first_segment_expression
 
@@ -382,15 +370,11 @@ class HashedCronResolver:
         if lower_bound <= upper_bound:
             deterministic_offset: int = random_generator.randint(lower_bound, upper_bound)
         else:
-            total_span: int = (effective_maximum_value - lower_bound + 1) + (
-                upper_bound - minimum_field_value + 1
-            )
+            total_span: int = (effective_maximum_value - lower_bound + 1) + (upper_bound - minimum_field_value + 1)
             offset_within_span: int = random_generator.randint(0, total_span - 1)
             deterministic_offset = lower_bound + offset_within_span
             if deterministic_offset > effective_maximum_value:
-                deterministic_offset = minimum_field_value + (
-                    deterministic_offset - effective_maximum_value - 1
-                )
+                deterministic_offset = minimum_field_value + (deterministic_offset - effective_maximum_value - 1)
 
         return str(deterministic_offset)
 
@@ -495,34 +479,39 @@ class CronItem:
 
     def match(self, current_value: int) -> bool:
         """Evaluates whether current_value matches the cron item range and step interval."""
-        target_value: int = current_value
+        if self.is_day_of_week:
+            return self._match_day_of_week_value(current_value)
+        return self._match_standard_field_value(current_value)
+
+    def _match_day_of_week_value(self, current_value: int) -> bool:
+        """Evaluates matching logic specifically for Day-of-Week values including 7/0 Sunday alias and wrap-around."""
+        target_value: int = SUNDAY_NORMALIZED_INDEX if current_value == SUNDAY_ALTERNATIVE_INDEX else current_value
         range_start: int = self.range_from
         range_end: int = self.range_to
 
-        if self.is_day_of_week:
-            if target_value == 7:
-                target_value = 0
+        if range_start == 0 and range_end >= MAXIMUM_DAY_OF_WEEK_INDEX:
+            return (target_value - range_start) % self.interval == 0
 
-            if range_start == 0 and range_end >= 6:
-                return (target_value - range_start) % self.interval == 0
+        normalized_start: int = SUNDAY_NORMALIZED_INDEX if range_start == SUNDAY_ALTERNATIVE_INDEX else range_start
+        normalized_end: int = SUNDAY_NORMALIZED_INDEX if range_end == SUNDAY_ALTERNATIVE_INDEX else range_end
 
-            normalized_start: int = 0 if range_start == 7 else range_start
-            normalized_end: int = 0 if range_end == 7 else range_end
+        if normalized_start <= normalized_end:
+            is_within_bound: bool = normalized_start <= target_value <= normalized_end
+            return is_within_bound and ((target_value - normalized_start) % self.interval == 0)
 
-            if normalized_start <= normalized_end:
-                return (
-                    normalized_start <= target_value <= normalized_end
-                    and (target_value - normalized_start) % self.interval == 0
-                )
+        is_within_wrap_around_bound: bool = (target_value >= normalized_start) or (target_value <= normalized_end)
+        if not is_within_wrap_around_bound:
+            return False
 
-            is_within_wrap_range = (target_value >= normalized_start) or (target_value <= normalized_end)
-            if not is_within_wrap_range:
-                return False
-            step_offset = (target_value - normalized_start) % 7
-            return step_offset % self.interval == 0
+        step_offset: int = (target_value - normalized_start) % DAYS_IN_WEEK
+        return step_offset % self.interval == 0
 
-        is_within_range = range_start <= target_value <= range_end
-        return is_within_range and ((target_value - range_start) % self.interval == 0)
+    def _match_standard_field_value(self, current_value: int) -> bool:
+        """Evaluates matching logic for standard numeric fields."""
+        is_within_bound: bool = self.range_from <= current_value <= self.range_to
+        if not is_within_bound:
+            return False
+        return (current_value - self.range_from) % self.interval == 0
 
     def _parse(self, item_expression: str) -> None:
         """Parses individual field expression, extracting range bounds and interval steps."""
@@ -550,7 +539,7 @@ class CronItem:
             )
             if self.range_from <= self.min_value and self.range_to >= self.max_value:
                 self.is_wildcard = self.interval == 1
-            elif self.is_day_of_week and (self.range_to - self.range_from >= 6):
+            elif self.is_day_of_week and (self.range_to - self.range_from >= MAXIMUM_DAY_OF_WEEK_INDEX):
                 self.is_wildcard = self.interval == 1
         else:
             start_value: int = self._validate_and_convert_value(expression_to_parse)
@@ -650,37 +639,44 @@ class CronExpression:
             resolved_cron_expression = _compile_resolved_cron_expression(resolved_expression_string)
             return resolved_cron_expression.is_now(target_datetime)
 
-        current_day_of_week: int = (target_datetime.weekday() + 1) % 7
+        return (
+            any(item.match(target_datetime.second) for item in self.second)
+            and any(item.match(target_datetime.minute) for item in self.minute)
+            and any(item.match(target_datetime.hour) for item in self.hour)
+            and any(item.match(target_datetime.month) for item in self.month)
+            and self._matches_date(target_datetime)
+        )
 
-        second_match: bool = any(item.match(target_datetime.second) for item in self.second)
-        minute_match: bool = any(item.match(target_datetime.minute) for item in self.minute)
-        hour_match: bool = any(item.match(target_datetime.hour) for item in self.hour)
-        month_match: bool = any(item.match(target_datetime.month) for item in self.month)
+    def _matches_date(self, target_datetime: datetime) -> bool:
+        """Evaluates Day-of-Month and Day-of-Week matching using POSIX standards.
 
-        day_of_month_match: bool = any(item.match(target_datetime.day) for item in self.day)
-        day_of_week_match: bool = any(item.match(current_day_of_week) for item in self.day_of_week)
+        Applies an OR rule when both fields are restricted, and AND otherwise.
+        """
+        current_day_of_week: int = (target_datetime.weekday() + 1) % DAYS_IN_WEEK
 
-        day_of_month_restricted: bool = not any(item.is_wildcard for item in self.day)
-        day_of_week_restricted: bool = not any(item.is_wildcard for item in self.day_of_week)
+        dom_match: bool = any(item.match(target_datetime.day) for item in self.day)
+        dow_match: bool = any(item.match(current_day_of_week) for item in self.day_of_week)
 
-        if day_of_month_restricted and day_of_week_restricted:
-            date_match: bool = day_of_month_match or day_of_week_match
-        else:
-            date_match: bool = day_of_month_match and day_of_week_match
+        dom_restricted: bool = not any(item.is_wildcard for item in self.day)
+        dow_restricted: bool = not any(item.is_wildcard for item in self.day_of_week)
 
-        return second_match and minute_match and hour_match and month_match and date_match
+        if dom_restricted and dow_restricted:
+            return dom_match or dow_match
+
+        return dom_match and dow_match
 
     def _build_field_items(self, expression_string: str) -> None:
         """Parses expression tokens into CronItem instances (standardized to 6 fields internally)."""
         expression_tokens: list[str] = expression_string.split()
-        if len(expression_tokens) < 5:
+        if len(expression_tokens) < DEFAULT_CRON_FIELD_COUNT:
             raise ValueError(
-                f"Cron expression requires at least 5 fields, received {len(expression_tokens)}: '{expression_string}'"
+                f"Cron expression requires at least {DEFAULT_CRON_FIELD_COUNT} fields, "
+                f"received {len(expression_tokens)}: '{expression_string}'"
             )
 
-        self.has_explicit_seconds_field: bool = len(expression_tokens) >= 6
+        self.has_explicit_seconds_field: bool = len(expression_tokens) >= EXTENDED_CRON_FIELD_COUNT
 
-        if len(expression_tokens) == 5:
+        if len(expression_tokens) == DEFAULT_CRON_FIELD_COUNT:
             expression_tokens = ["0"] + expression_tokens
 
         (
@@ -690,7 +686,7 @@ class CronExpression:
             day_token,
             month_token,
             day_of_week_token,
-        ) = expression_tokens[:6]
+        ) = expression_tokens[:EXTENDED_CRON_FIELD_COUNT]
 
         self.second = [CronItem.Second(token) for token in second_token.split(",")]
         self.minute = [CronItem.Minute(token) for token in minute_token.split(",")]
