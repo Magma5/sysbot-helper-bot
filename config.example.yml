@@ -69,3 +69,12 @@ cogs:
       unlock: ':green_circle: **Channel unlocked.** This bot is now online and ready to use.'
   time:
     timezone: Europe/Berlin
+
+  api_messages: {}
+  api_health: {}
+  api_webhooks: {}
+  api_sendgrid: {}
+  api_s3: {}
+
+api:
+  port: 8080

@@ -43,7 +43,11 @@ def temporary_configuration_file_path() -> Generator[Path, None, None]:
             "time": {
                 "timezone": "Europe/Berlin",
             },
-            "api_server": {},
+            "api_messages": {},
+            "api_health": {},
+            "api_webhooks": {},
+            "api_sendgrid": {},
+            "api_s3": {},
             "autoreact": [],
             "floating_help": {
                 "channels": {123: "help"},

@@ -84,6 +84,11 @@ class Bot(Base):
 
         super().__init__(**bot_args, intents=intents)
 
+        # Initialize API framework
+        api_config = config.pop("api", {})
+        from .api import APIServer
+        self.api = APIServer(self, **api_config)
+
         # Register cogs based on configs
         self.register_all_cogs(config)
 
@@ -236,6 +241,7 @@ class Bot(Base):
         if motd:
             print(motd)
         await self.scheduler.start()
+        await self.api.start()
 
     def context_attach_attributes(self, ctx):
         ctx.template_variables = lambda: self.template_variables(ctx)
