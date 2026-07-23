@@ -9,48 +9,42 @@ class TestCronExpression(unittest.TestCase):
         """Verifies that a wildcard cron item matches any integer value within bounds."""
         cron_item: CronItem = CronItem.Minute("*")
 
-        self.assertTrue(cron_item.match(0))
-        self.assertTrue(cron_item.match(30))
-        self.assertTrue(cron_item.match(59))
+        self.assertTrue(cron_item.is_wildcard)
 
     def test_cron_item_step_expression_parsing(self) -> None:
         """Verifies step evaluation for 5/10 (starts at 5 through 59 step 10)."""
         cron_item: CronItem = CronItem.Minute("5/10")
 
-        self.assertTrue(cron_item.match(5))
-        self.assertTrue(cron_item.match(15))
-        self.assertTrue(cron_item.match(25))
-        self.assertTrue(cron_item.match(55))
-        self.assertFalse(cron_item.match(0))
-        self.assertFalse(cron_item.match(10))
+        self.assertIn(5, cron_item.allowed_values)
+        self.assertIn(15, cron_item.allowed_values)
+        self.assertIn(25, cron_item.allowed_values)
+        self.assertIn(55, cron_item.allowed_values)
+        self.assertNotIn(0, cron_item.allowed_values)
+        self.assertNotIn(10, cron_item.allowed_values)
 
     def test_cron_item_range_and_interval_matching(self) -> None:
         """Verifies range with interval step evaluation."""
         cron_item: CronItem = CronItem.Hour("2-10/2")
 
-        self.assertTrue(cron_item.match(2))
-        self.assertTrue(cron_item.match(4))
-        self.assertFalse(cron_item.match(3))
-        self.assertFalse(cron_item.match(12))
+        self.assertIn(2, cron_item.allowed_values)
+        self.assertIn(4, cron_item.allowed_values)
+        self.assertNotIn(3, cron_item.allowed_values)
+        self.assertNotIn(12, cron_item.allowed_values)
 
     def test_cron_month_and_day_aliases(self) -> None:
         """Verifies textual month and day name alias parsing."""
         month_item: CronItem = CronItem.Month("Jan")
-        self.assertTrue(month_item.match(1))
-        self.assertFalse(month_item.match(2))
+        self.assertIn(1, month_item.allowed_values)
+        self.assertNotIn(2, month_item.allowed_values)
 
         day_of_week_item: CronItem = CronItem.DayOfWeek("Mon")
-        self.assertTrue(day_of_week_item.match(1))
-        self.assertFalse(day_of_week_item.match(0))
+        self.assertIn(1, day_of_week_item.allowed_values)
+        self.assertNotIn(0, day_of_week_item.allowed_values)
 
     def test_sunday_alias_and_full_week_range_matching(self) -> None:
         """Verifies that 0-7 and 1-7 full week ranges match all days and set is_wildcard."""
         dow_range_0_7: CronItem = CronItem.DayOfWeek("0-7")
         dow_range_1_7: CronItem = CronItem.DayOfWeek("1-7")
-
-        for day in range(7):
-            self.assertTrue(dow_range_0_7.match(day), f"Failed to match day {day} for range 0-7")
-            self.assertTrue(dow_range_1_7.match(day), f"Failed to match day {day} for range 1-7")
 
         self.assertTrue(dow_range_0_7.is_wildcard)
         self.assertTrue(dow_range_1_7.is_wildcard)

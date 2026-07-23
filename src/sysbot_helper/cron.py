@@ -420,6 +420,44 @@ class HashedCronResolver:
         return int(cleaned_bound)
 
 
+@dataclass(frozen=True)
+class CronMatcher:
+    """Pre-compiled O(1) frozen set representations of allowed cron values."""
+
+    second: frozenset[int]
+    second_is_wildcard: bool
+    minute: frozenset[int]
+    minute_is_wildcard: bool
+    hour: frozenset[int]
+    hour_is_wildcard: bool
+    day: frozenset[int]
+    day_is_wildcard: bool
+    month: frozenset[int]
+    month_is_wildcard: bool
+    day_of_week: frozenset[int]
+    day_of_week_is_wildcard: bool
+
+    def matches(self, target_datetime: datetime) -> bool:
+        if not (self.second_is_wildcard or target_datetime.second in self.second):
+            return False
+        if not (self.minute_is_wildcard or target_datetime.minute in self.minute):
+            return False
+        if not (self.hour_is_wildcard or target_datetime.hour in self.hour):
+            return False
+        if not (self.month_is_wildcard or target_datetime.month in self.month):
+            return False
+
+        current_day_of_week: int = (target_datetime.weekday() + 1) % DAYS_IN_WEEK
+
+        day_match = self.day_is_wildcard or target_datetime.day in self.day
+        dow_match = self.day_of_week_is_wildcard or current_day_of_week in self.day_of_week
+
+        if not self.day_is_wildcard and not self.day_of_week_is_wildcard:
+            return day_match or dow_match
+
+        return day_match and dow_match
+
+
 class CronItem:
     """Representation of a single cron expression field (second, minute, hour, day, month, day-of-week)."""
 
@@ -432,6 +470,7 @@ class CronItem:
         "aliases",
         "is_day_of_week",
         "is_wildcard",
+        "allowed_values",
     )
 
     @classmethod
@@ -477,41 +516,25 @@ class CronItem:
 
         self._parse(item_expression)
 
-    def match(self, current_value: int) -> bool:
-        """Evaluates whether current_value matches the cron item range and step interval."""
-        if self.is_day_of_week:
-            return self._match_day_of_week_value(current_value)
-        return self._match_standard_field_value(current_value)
+        values = set()
+        if not self.is_wildcard:
+            if self.is_day_of_week:
+                start = SUNDAY_NORMALIZED_INDEX if self.range_from == SUNDAY_ALTERNATIVE_INDEX else self.range_from
+                end = SUNDAY_NORMALIZED_INDEX if self.range_to == SUNDAY_ALTERNATIVE_INDEX else self.range_to
+                curr = start
+                step_count = 0
+                while True:
+                    if step_count % self.interval == 0:
+                        values.add(curr)
+                    if curr == end:
+                        break
+                    curr = (curr + 1) % DAYS_IN_WEEK
+                    step_count += 1
+            else:
+                for v in range(self.range_from, self.range_to + 1, self.interval):
+                    values.add(v)
 
-    def _match_day_of_week_value(self, current_value: int) -> bool:
-        """Evaluates matching logic specifically for Day-of-Week values including 7/0 Sunday alias and wrap-around."""
-        target_value: int = SUNDAY_NORMALIZED_INDEX if current_value == SUNDAY_ALTERNATIVE_INDEX else current_value
-        range_start: int = self.range_from
-        range_end: int = self.range_to
-
-        if range_start == 0 and range_end >= MAXIMUM_DAY_OF_WEEK_INDEX:
-            return (target_value - range_start) % self.interval == 0
-
-        normalized_start: int = SUNDAY_NORMALIZED_INDEX if range_start == SUNDAY_ALTERNATIVE_INDEX else range_start
-        normalized_end: int = SUNDAY_NORMALIZED_INDEX if range_end == SUNDAY_ALTERNATIVE_INDEX else range_end
-
-        if normalized_start <= normalized_end:
-            is_within_bound: bool = normalized_start <= target_value <= normalized_end
-            return is_within_bound and ((target_value - normalized_start) % self.interval == 0)
-
-        is_within_wrap_around_bound: bool = (target_value >= normalized_start) or (target_value <= normalized_end)
-        if not is_within_wrap_around_bound:
-            return False
-
-        step_offset: int = (target_value - normalized_start) % DAYS_IN_WEEK
-        return step_offset % self.interval == 0
-
-    def _match_standard_field_value(self, current_value: int) -> bool:
-        """Evaluates matching logic for standard numeric fields."""
-        is_within_bound: bool = self.range_from <= current_value <= self.range_to
-        if not is_within_bound:
-            return False
-        return (current_value - self.range_from) % self.interval == 0
+        self.allowed_values: frozenset[int] = frozenset(values)
 
     def _parse(self, item_expression: str) -> None:
         """Parses individual field expression, extracting range bounds and interval steps."""
@@ -601,6 +624,7 @@ class CronExpression:
         "raw_expression",
         "seed",
         "has_explicit_seconds_field",
+        "matcher",
     )
 
     def __init__(
@@ -637,33 +661,9 @@ class CronExpression:
                 target_datetime=target_datetime,
             )
             resolved_cron_expression = _compile_resolved_cron_expression(resolved_expression_string)
-            return resolved_cron_expression.is_now(target_datetime)
+            return resolved_cron_expression.matcher.matches(target_datetime)
 
-        return (
-            any(item.match(target_datetime.second) for item in self.second)
-            and any(item.match(target_datetime.minute) for item in self.minute)
-            and any(item.match(target_datetime.hour) for item in self.hour)
-            and any(item.match(target_datetime.month) for item in self.month)
-            and self._matches_date(target_datetime)
-        )
-
-    def _matches_date(self, target_datetime: datetime) -> bool:
-        """Evaluates Day-of-Month and Day-of-Week matching using POSIX standards.
-
-        Applies an OR rule when both fields are restricted, and AND otherwise.
-        """
-        current_day_of_week: int = (target_datetime.weekday() + 1) % DAYS_IN_WEEK
-
-        dom_match: bool = any(item.match(target_datetime.day) for item in self.day)
-        dow_match: bool = any(item.match(current_day_of_week) for item in self.day_of_week)
-
-        dom_restricted: bool = not any(item.is_wildcard for item in self.day)
-        dow_restricted: bool = not any(item.is_wildcard for item in self.day_of_week)
-
-        if dom_restricted and dow_restricted:
-            return dom_match or dow_match
-
-        return dom_match and dow_match
+        return self.matcher.matches(target_datetime)
 
     def _build_field_items(self, expression_string: str) -> None:
         """Parses expression tokens into CronItem instances (standardized to 6 fields internally)."""
@@ -694,6 +694,21 @@ class CronExpression:
         self.day = [CronItem.Day(token) for token in day_token.split(",")]
         self.month = [CronItem.Month(token) for token in month_token.split(",")]
         self.day_of_week = [CronItem.DayOfWeek(token) for token in day_of_week_token.split(",")]
+
+        self.matcher = CronMatcher(
+            second=frozenset(v for item in self.second for v in item.allowed_values),
+            second_is_wildcard=any(item.is_wildcard for item in self.second),
+            minute=frozenset(v for item in self.minute for v in item.allowed_values),
+            minute_is_wildcard=any(item.is_wildcard for item in self.minute),
+            hour=frozenset(v for item in self.hour for v in item.allowed_values),
+            hour_is_wildcard=any(item.is_wildcard for item in self.hour),
+            day=frozenset(v for item in self.day for v in item.allowed_values),
+            day_is_wildcard=any(item.is_wildcard for item in self.day),
+            month=frozenset(v for item in self.month for v in item.allowed_values),
+            month_is_wildcard=any(item.is_wildcard for item in self.month),
+            day_of_week=frozenset(v for item in self.day_of_week for v in item.allowed_values),
+            day_of_week_is_wildcard=any(item.is_wildcard for item in self.day_of_week),
+        )
 
     def __str__(self) -> str:
         all_fields = [
