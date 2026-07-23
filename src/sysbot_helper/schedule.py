@@ -27,11 +27,17 @@ class ScheduledTask:
         self.callback = callback
         self.on_ready = on_ready
         self.cron_schedules: list[CronExpression] = []
+        self.last_run: datetime | None = None
 
     def bind_to_cog(self, cog: Any) -> None:
         """Binds the scheduled task to a cog and compiles cron expressions with dynamic seeding."""
         seed_name = f"{cog.__class__.__name__}.{self.callback.__name__}"
         self.cron_schedules = [CronExpression(expr, seed=seed_name) for expr in self.raw_schedules]
+
+    @property
+    def has_seconds_precision(self) -> bool:
+        """Checks if any associated cron expression has explicit seconds precision."""
+        return any(cron.has_explicit_seconds_field for cron in self.cron_schedules)
 
     def match(self, dt: datetime) -> bool:
         """Checks if the given datetime matches any of the registered schedules."""
@@ -44,7 +50,16 @@ class ScheduledTask:
                 await self.invoke(cog)
             return
 
-        if self.match(dt):
+        if self.has_seconds_precision:
+            normalized_dt = dt.replace(microsecond=0)
+        else:
+            normalized_dt = dt.replace(second=0, microsecond=0)
+
+        if self.last_run == normalized_dt:
+            return
+
+        if self.match(normalized_dt):
+            self.last_run = normalized_dt
             await self.invoke(cog)
 
     async def invoke(self, cog: Any) -> None:
