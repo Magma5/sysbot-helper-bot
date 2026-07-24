@@ -37,12 +37,28 @@ class Bot(Base):
         "user_groups_save",
     }
 
-    def __init__(self, config_file: Path):
-        # Open and read the config for this bot
-        self.config_file = config_file
+    @classmethod
+    def from_file(cls, config_file: Path | str, **bot_args) -> "Bot":
+        """Alternative constructor to instantiate a Bot from a YAML configuration file path."""
+        if isinstance(config_file, str):
+            config_file = Path(config_file)
         log.info("Loading config file: %s", config_file)
         with config_file.open() as f:
             config = yaml.safe_load(f)
+        bot = cls(config, **bot_args)
+        bot.config_file = config_file
+        return bot
+
+    def __init__(self, config_dict: dict, **bot_args):
+        intents = Intents.default()
+        intents.members = True
+        intents.message_content = True
+        intents.presences = True
+
+        super().__init__(**bot_args, intents=intents)
+
+        self.config_file = None
+        config = config_dict
 
         self._check_deprecated_configs(config)
         self.configs = {

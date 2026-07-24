@@ -12,7 +12,7 @@ def test_bot_initialization_and_cog_loading(
     """Verifies that the bot and all of its configured cogs instantiate cleanly."""
     os.environ["TOKEN"] = "mock_discord_token_for_testing"
 
-    bot_instance: Bot = Bot(temporary_configuration_file_path)
+    bot_instance: Bot = Bot.from_file(temporary_configuration_file_path)
 
     assert bot_instance is not None
 
@@ -56,25 +56,12 @@ def test_bot_initialization_fails_on_invalid_config(
     import yaml
     from pydantic import ValidationError
 
-    # Read the valid config, modify it to be invalid, and save it
+    # Read the valid config, modify it to be invalid, and test in-memory
     with open(temporary_configuration_file_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     # Make luck.mu invalid by setting it to a string that cannot be coerced to int
     config["cogs"]["luck"]["mu"] = "invalid_string_not_an_int"
 
-    # Write it back to a temp file
-    import tempfile
-
-    with tempfile.NamedTemporaryFile(suffix=".yml", mode="w", delete=False) as temp_f:
-        yaml.dump(config, temp_f)
-        temp_path = Path(temp_f.name)
-
-    try:
-        with pytest.raises(ValidationError):
-            Bot(temp_path)
-    finally:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
+    with pytest.raises(ValidationError):
+        Bot(config_dict=config)

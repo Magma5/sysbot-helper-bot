@@ -67,5 +67,5 @@ def run_alembic(config_files: list[Path], alembic_argv):
 
 async def bot_start(config_files):
     # Initialize and start all the bots
-    futures = (Bot(config).start() for config in config_files)
+    futures = (Bot.from_file(config).start() for config in config_files)
     await asyncio.gather(*futures)
