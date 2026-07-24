@@ -1,8 +1,9 @@
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 from aiohttp.test_utils import TestClient, TestServer
-from sysbot_helper.bot import Bot
 from sysbot_helper.api import APIServer
+from sysbot_helper.bot import Bot
 from sysbot_helper.cogs.api_messages import ApiMessages
 
 
@@ -10,15 +11,15 @@ from sysbot_helper.cogs.api_messages import ApiMessages
 def mock_bot():
     bot = MagicMock(spec=Bot)
     bot.api = APIServer(bot)
-    
+
     mock_channel = MagicMock()
     mock_message = MagicMock()
     mock_message.id = 12345
     mock_message.channel.id = 67890
     mock_message.content = "hello there"
-    
+
     mock_channel.send = AsyncMock(return_value=mock_message)
-    
+
     def get_channel(channel_id):
         if channel_id == 67890:
             return mock_channel
@@ -31,7 +32,7 @@ def mock_bot():
 @pytest.mark.asyncio
 async def test_api_messages_send_message_success(mock_bot):
     """Verifies that the raw body endpoint sends a message properly."""
-    cog = ApiMessages(mock_bot)
+    _ = ApiMessages(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message/67890", data="hello there")
         assert resp.status == 200
@@ -44,7 +45,7 @@ async def test_api_messages_send_message_success(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_channel_not_found(mock_bot):
     """Verifies that an invalid channel returns 404."""
-    cog = ApiMessages(mock_bot)
+    _ = ApiMessages(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message/99999", data="hello there")
         assert resp.status == 404
@@ -55,7 +56,7 @@ async def test_api_messages_send_message_channel_not_found(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_form_success(mock_bot):
     """Verifies that the form endpoint sends a message properly."""
-    cog = ApiMessages(mock_bot)
+    _ = ApiMessages(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message", data={"channel_id": "67890", "content": "hello there"})
         assert resp.status == 200
@@ -66,7 +67,7 @@ async def test_api_messages_send_message_form_success(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_form_missing_params(mock_bot):
     """Verifies that missing parameters in the form endpoint return 400 Bad Request."""
-    cog = ApiMessages(mock_bot)
+    _ = ApiMessages(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         # Missing content
         resp = await client.post("/api/send_message", data={"channel_id": "67890"})

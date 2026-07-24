@@ -87,6 +87,7 @@ class Bot(Base):
         # Initialize API framework
         api_config = config.pop("api", {})
         from .api import APIServer
+
         self.api = APIServer(self, **api_config)
 
         # Register cogs based on configs

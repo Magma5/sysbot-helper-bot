@@ -10,8 +10,8 @@ from discord.ext import commands
 from markdownify import markdownify
 
 from sysbot_helper.api import APIRouter, json_response
-from sysbot_helper.bot import Bot
 from sysbot_helper.api_utils import send_to_channel
+from sysbot_helper.bot import Bot
 
 
 def body_get(body, name):
@@ -31,14 +31,13 @@ def body_get_bytes(body, name):
 
 
 class ApiSendgrid(commands.Cog):
+    router = APIRouter(prefix="/api/sendgrid")
+
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.router = APIRouter(prefix="/api/sendgrid")
-        
-        self.router.add_post("/{channel_id:[0-9]+}", self.send_message_sendgrid)
-        
-        self.bot.api.add_router(self.router)
+        self.bot.api.add_router(self.router, self)
 
+    @router.post("/{channel_id:[0-9]+}")
     async def send_message_sendgrid(self, request: web.Request):
         channel_id = int(request.match_info["channel_id"])
 

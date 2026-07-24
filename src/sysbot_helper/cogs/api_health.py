@@ -7,18 +7,17 @@ from sysbot_helper.bot import Bot
 
 class ApiHealth(commands.Cog):
     """Provides basic healthcheck endpoints for the API server."""
-    
+
+    router = APIRouter()
+
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.router = APIRouter()
-        
-        self.router.add_get("/hello", self.hello)
-        self.router.add_get("/healthcheck", self.health_check)
-        
-        self.bot.api.add_router(self.router)
+        self.bot.api.add_router(self.router, self)
 
+    @router.get("/hello")
     async def hello(self, _):
         return web.Response(text="hello, world!\n")
 
+    @router.get("/healthcheck")
     async def health_check(self, _):
         return web.Response(text="OK")

@@ -1,8 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
-from sysbot_helper.bot import Bot
 from sysbot_helper.api import APIServer
+from sysbot_helper.bot import Bot
 from sysbot_helper.cogs.api_health import ApiHealth
 
 
@@ -16,7 +17,7 @@ def mock_bot():
 @pytest.mark.asyncio
 async def test_api_health_hello(mock_bot):
     """Verifies that the /hello endpoint returns 'hello, world!'."""
-    cog = ApiHealth(mock_bot)
+    _ = ApiHealth(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.get("/hello")
         assert resp.status == 200
@@ -27,7 +28,7 @@ async def test_api_health_hello(mock_bot):
 @pytest.mark.asyncio
 async def test_api_health_healthcheck(mock_bot):
     """Verifies that the /healthcheck endpoint returns 'OK'."""
-    cog = ApiHealth(mock_bot)
+    _ = ApiHealth(mock_bot)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.get("/healthcheck")
         assert resp.status == 200

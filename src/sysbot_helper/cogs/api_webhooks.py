@@ -8,36 +8,37 @@ from discord import File
 from discord.ext import commands
 
 from sysbot_helper.api import APIRouter, json_response
+from sysbot_helper.api_utils import send_to_channel
 from sysbot_helper.bot import Bot
 from sysbot_helper.utils import embed_from_dict
-from sysbot_helper.api_utils import send_to_channel
 
 
 class ApiWebhooks(commands.Cog):
+    router = APIRouter(prefix="/api/webhooks")
+
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.router = APIRouter(prefix="/api/webhooks")
-        
-        self.router.add_get("/{channel_id:[0-9]+}", self.get_webhook)
-        self.router.add_post("/{channel_id:[0-9]+}", self.send_message_webhook)
-        
-        self.bot.api.add_router(self.router)
+        self.bot.api.add_router(self.router, self)
 
+    @router.get("/{channel_id:[0-9]+}")
     async def get_webhook(self, request: web.Request):
         channel_id = int(request.match_info["channel_id"])
         channel = self.bot.get_channel(channel_id)
         if not channel:
             raise web.HTTPNotFound(reason=f"Channel {channel_id} not found.")
 
-        return json_response({
-            "type": 1,
-            "id": str(channel_id),
-            "channel_id": str(channel_id),
-            "guild_id": str(channel.guild.id),
-            "application_id": None,
-            "avatar": None,
-        })
+        return json_response(
+            {
+                "type": 1,
+                "id": str(channel_id),
+                "channel_id": str(channel_id),
+                "guild_id": str(channel.guild.id),
+                "application_id": None,
+                "avatar": None,
+            }
+        )
 
+    @router.post("/{channel_id:[0-9]+}")
     async def send_message_webhook(self, request: web.Request):
         channel_id = int(request.match_info["channel_id"])
         files = []
