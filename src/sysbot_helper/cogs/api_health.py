@@ -12,7 +12,6 @@ class ApiHealth(commands.Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.bot.api.add_router(self.router, self)
 
     @router.get("/hello")
     async def hello(self, _):

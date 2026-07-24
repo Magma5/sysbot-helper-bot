@@ -1,10 +1,13 @@
 import asyncio
+import logging
 import traceback
 from collections.abc import Callable
 from typing import Any
 
 from aiohttp import web
 from pydantic import BaseModel
+
+log = logging.getLogger(__name__)
 
 
 @web.middleware
@@ -140,22 +143,37 @@ class APIServer:
     First-class API framework manager that hooks into the core Bot lifecycle.
     """
 
-    def __init__(self, bot, listen: str = "localhost", port: int = 8080):
+    def __init__(self, bot, enabled: bool = True, listen: str = "localhost", port: int = 8080):
         self.bot = bot
+        self.enabled = enabled
         self.listen = listen
         self.port = port
-        self.app = web.Application(client_max_size=500 * 1024 * 1024, middlewares=[error_middleware])
-        self.app["bot"] = bot
+
+        if self.enabled:
+            self.app = web.Application(client_max_size=500 * 1024 * 1024, middlewares=[error_middleware])
+            self.app["bot"] = bot
+        else:
+            self.app = None
+
         self.site_task: asyncio.Task | None = None
         self.runner: web.AppRunner | None = None
 
     def add_router(self, router: APIRouter, instance: Any = None) -> None:
         """Mount a modular APIRouter onto the application."""
-        self.app.add_routes(router.get_routes(instance=instance))
+        owner = instance.__class__.__name__ if instance else "standalone"
+        if not self.enabled:
+            log.info(
+                "API server disabled; skipped registering routes for %s (prefix: '%s')", owner, router.prefix or "/"
+            )
+            return
+
+        routes = router.get_routes(instance=instance)
+        self.app.add_routes(routes)
+        log.info("Registered %d API route(s) for %s (prefix: '%s')", len(routes), owner, router.prefix or "/")
 
     async def start(self) -> None:
         """Start the aiohttp server in the background."""
-        if self.site_task is not None:
+        if not self.enabled or self.site_task is not None:
             return
 
         self.runner = web.AppRunner(self.app)
@@ -166,6 +184,9 @@ class APIServer:
 
     async def stop(self) -> None:
         """Gracefully stop the aiohttp server."""
+        if not self.enabled:
+            return
+
         if self.site_task:
             self.site_task.cancel()
         if self.runner:

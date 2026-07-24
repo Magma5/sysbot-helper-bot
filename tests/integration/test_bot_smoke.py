@@ -65,3 +65,26 @@ def test_bot_initialization_fails_on_invalid_config(
 
     with pytest.raises(ValidationError):
         Bot(config_dict=config)
+
+
+def test_bot_initialization_without_api_config(
+    temporary_configuration_file_path: Path,
+) -> None:
+    """Verifies that the bot boots gracefully when the 'api' config block is omitted."""
+    import yaml
+
+    with open(temporary_configuration_file_path, encoding="utf-8") as f:
+        config = yaml.safe_load(f)
+
+    # Remove the api block
+    if "api" in config:
+        del config["api"]
+
+    bot_instance = Bot(config_dict=config)
+    assert bot_instance.api.enabled is False
+    assert bot_instance.api.app is None
+
+    # Ensure cogs were still loaded even without the API
+    loaded_cog_names: set[str] = set(bot_instance.cog_list)
+    assert "ApiHealth" in loaded_cog_names
+    assert "ApiMessages" in loaded_cog_names

@@ -35,7 +35,6 @@ class ApiSendgrid(commands.Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.bot.api.add_router(self.router, self)
 
     @router.post("/{channel_id:[0-9]+}")
     async def send_message_sendgrid(self, request: web.Request):

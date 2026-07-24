@@ -14,7 +14,6 @@ class ApiS3(commands.Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.bot.api.add_router(self.router, self)
 
     @router.head("/{channel_id:[0-9]+}")
     async def head_bucket_s3(self, request: web.Request):

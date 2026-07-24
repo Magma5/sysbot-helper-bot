@@ -17,7 +17,8 @@ def mock_bot():
 @pytest.mark.asyncio
 async def test_api_health_hello(mock_bot):
     """Verifies that the /hello endpoint returns 'hello, world!'."""
-    _ = ApiHealth(mock_bot)
+    cog = ApiHealth(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.get("/hello")
         assert resp.status == 200
@@ -28,7 +29,8 @@ async def test_api_health_hello(mock_bot):
 @pytest.mark.asyncio
 async def test_api_health_healthcheck(mock_bot):
     """Verifies that the /healthcheck endpoint returns 'OK'."""
-    _ = ApiHealth(mock_bot)
+    cog = ApiHealth(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.get("/healthcheck")
         assert resp.status == 200

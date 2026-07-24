@@ -101,10 +101,13 @@ class Bot(Base):
         super().__init__(**bot_args, intents=intents)
 
         # Initialize API framework
-        api_config = config.pop("api", {})
+        api_config = config.pop("api", None)
         from .api import APIServer
 
-        self.api = APIServer(self, **api_config)
+        if api_config is None:
+            self.api = APIServer(self, enabled=False)
+        else:
+            self.api = APIServer(self, enabled=True, **api_config)
 
         # Register cogs based on configs
         self.register_all_cogs(config)
@@ -284,6 +287,11 @@ class Bot(Base):
     def add_cog(self, cog: commands.Cog) -> None:
         super().add_cog(cog)
         self.scheduler.register_cog_tasks(cog)
+        if getattr(self, "api", None):
+            from .api import APIRouter
+
+            if hasattr(cog, "router") and isinstance(cog.router, APIRouter):
+                self.api.add_router(cog.router, instance=cog)
 
     def remove_cog(self, name: str) -> commands.Cog | None:
         cog = super().remove_cog(name)

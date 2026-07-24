@@ -18,7 +18,6 @@ class ApiWebhooks(commands.Cog):
 
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.bot.api.add_router(self.router, self)
 
     @router.get("/{channel_id:[0-9]+}")
     async def get_webhook(self, request: web.Request):

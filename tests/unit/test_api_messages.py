@@ -32,7 +32,8 @@ def mock_bot():
 @pytest.mark.asyncio
 async def test_api_messages_send_message_success(mock_bot):
     """Verifies that the raw body endpoint sends a message properly."""
-    _ = ApiMessages(mock_bot)
+    cog = ApiMessages(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message/67890", data="hello there")
         assert resp.status == 200
@@ -45,7 +46,8 @@ async def test_api_messages_send_message_success(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_channel_not_found(mock_bot):
     """Verifies that an invalid channel returns 404."""
-    _ = ApiMessages(mock_bot)
+    cog = ApiMessages(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message/99999", data="hello there")
         assert resp.status == 404
@@ -56,7 +58,8 @@ async def test_api_messages_send_message_channel_not_found(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_form_success(mock_bot):
     """Verifies that the form endpoint sends a message properly."""
-    _ = ApiMessages(mock_bot)
+    cog = ApiMessages(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         resp = await client.post("/api/send_message", data={"channel_id": "67890", "content": "hello there"})
         assert resp.status == 200
@@ -67,7 +70,8 @@ async def test_api_messages_send_message_form_success(mock_bot):
 @pytest.mark.asyncio
 async def test_api_messages_send_message_form_missing_params(mock_bot):
     """Verifies that missing parameters in the form endpoint return 400 Bad Request."""
-    _ = ApiMessages(mock_bot)
+    cog = ApiMessages(mock_bot)
+    mock_bot.api.add_router(cog.router, instance=cog)
     async with TestClient(TestServer(mock_bot.api.app)) as client:
         # Missing content
         resp = await client.post("/api/send_message", data={"channel_id": "67890"})
