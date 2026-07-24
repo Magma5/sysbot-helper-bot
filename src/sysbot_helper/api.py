@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import traceback
 from collections.abc import Callable
@@ -36,18 +37,10 @@ def json_response(data: Any, **kwargs) -> web.Response:
     return web.json_response(data, **kwargs)
 
 
-class RouteSpec:
-    def __init__(self, method: str, path: str, handler: Callable, **kwargs):
-        self.method = method.upper()
-        self.path = path
-        self.handler = handler
-        self.kwargs = kwargs
-
-
 class APIRouter:
     """
-    Modular router for API endpoints supporting both decorator-based route registration
-    (@router.get, @router.post, etc.) and explicit imperative registration (.add_get, .add_post).
+    Modular router for API endpoints using decorator-based route registration
+    (@router.get, @router.post, etc.) and metadata tagging.
 
     Inspired by FastAPI, Flask, and aiohttp RouteTableDef, tailored specifically for Python class-based
     components like discord.py Cogs.
@@ -55,13 +48,26 @@ class APIRouter:
 
     def __init__(self, prefix: str = ""):
         self.prefix = prefix
-        self._route_specs: list[RouteSpec] = []
+
+    def _normalize_path(self, path: str) -> str:
+        """Join prefix and path cleanly, ensuring exactly one leading slash."""
+        p1 = self.prefix.strip("/")
+        p2 = path.strip("/")
+        if p1 and p2:
+            return f"/{p1}/{p2}"
+        elif p1:
+            return f"/{p1}"
+        elif p2:
+            return f"/{p2}"
+        return "/"
 
     def route(self, method: str, path: str, **kwargs) -> Callable:
         """Generic route decorator (e.g., @router.route("GET", "/path"))."""
 
         def decorator(handler: Callable) -> Callable:
-            self._route_specs.append(RouteSpec(method, path, handler, **kwargs))
+            if not hasattr(handler, "__route_specs__"):
+                handler.__route_specs__ = []
+            handler.__route_specs__.append({"method": method.upper(), "path": path, "kwargs": kwargs})
             return handler
 
         return decorator
@@ -90,50 +96,30 @@ class APIRouter:
         """Decorator for HEAD routes."""
         return self.route("HEAD", path, **kwargs)
 
-    def add_route(self, method: str, path: str, handler: Callable, **kwargs) -> None:
-        """Imperatively add a route handler."""
-        self._route_specs.append(RouteSpec(method, path, handler, **kwargs))
-
-    def add_get(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("GET", path, handler, **kwargs)
-
-    def add_post(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("POST", path, handler, **kwargs)
-
-    def add_put(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("PUT", path, handler, **kwargs)
-
-    def add_delete(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("DELETE", path, handler, **kwargs)
-
-    def add_head(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("HEAD", path, handler, **kwargs)
-
-    def add_patch(self, path: str, handler: Callable, **kwargs) -> None:
-        self.add_route("PATCH", path, handler, **kwargs)
-
-    def get_routes(self, instance: Any = None) -> web.RouteTableDef:
+    def get_routes(self, instance: Any) -> web.RouteTableDef:
         """
         Build an aiohttp.web.RouteTableDef for mounting on an aiohttp web.Application.
-        If an instance (e.g. Cog) is provided, unbound class functions are automatically bound to instance methods.
+        Inspects the bound methods of the instance for route metadata injected by decorators.
         """
         routes = web.RouteTableDef()
-        for spec in self._route_specs:
-            full_path = self.prefix + spec.path
-            handler = spec.handler
 
-            if instance is not None and hasattr(handler, "__name__"):
-                method_name = handler.__name__
-                if hasattr(instance, method_name):
-                    attr = getattr(instance, method_name)
-                    if callable(attr):
-                        handler = attr
+        for name, bound_method in inspect.getmembers(instance, predicate=inspect.ismethod):
+            underlying_func = getattr(bound_method, "__func__", bound_method)
+            specs = getattr(underlying_func, "__route_specs__", None)
 
-            route_decorator = getattr(routes, spec.method.lower(), None)
-            if route_decorator:
-                route_decorator(full_path, **spec.kwargs)(handler)
-            else:
-                routes.route(spec.method, full_path, **spec.kwargs)(handler)
+            if not specs:
+                continue
+
+            for spec in specs:
+                full_path = self._normalize_path(spec["path"])
+                method_name = spec["method"]
+                kwargs = spec["kwargs"]
+
+                route_decorator = getattr(routes, method_name.lower(), None)
+                if route_decorator:
+                    route_decorator(full_path, **kwargs)(bound_method)
+                else:
+                    routes.route(method_name, full_path, **kwargs)(bound_method)
 
         return routes
 
