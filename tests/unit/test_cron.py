@@ -7,13 +7,13 @@ from sysbot_helper.cron import _DAY_NAMES, CronExpression, CronFieldType, CronIt
 class TestCronExpression(unittest.TestCase):
     def test_cron_item_wildcard_matching(self) -> None:
         """Verifies that a wildcard cron item matches any integer value within bounds."""
-        cron_item: CronItem = CronItem.Minute("*")
+        cron_item: CronItem = CronItem.minute("*")
 
         self.assertTrue(cron_item.is_wildcard)
 
     def test_cron_item_step_expression_parsing(self) -> None:
         """Verifies step evaluation for 5/10 (starts at 5 through 59 step 10)."""
-        cron_item: CronItem = CronItem.Minute("5/10")
+        cron_item: CronItem = CronItem.minute("5/10")
 
         self.assertIn(5, cron_item.allowed_values)
         self.assertIn(15, cron_item.allowed_values)
@@ -24,7 +24,7 @@ class TestCronExpression(unittest.TestCase):
 
     def test_cron_item_range_and_interval_matching(self) -> None:
         """Verifies range with interval step evaluation."""
-        cron_item: CronItem = CronItem.Hour("2-10/2")
+        cron_item: CronItem = CronItem.hour("2-10/2")
 
         self.assertIn(2, cron_item.allowed_values)
         self.assertIn(4, cron_item.allowed_values)
@@ -33,18 +33,18 @@ class TestCronExpression(unittest.TestCase):
 
     def test_cron_month_and_day_aliases(self) -> None:
         """Verifies textual month and day name alias parsing."""
-        month_item: CronItem = CronItem.Month("Jan")
+        month_item: CronItem = CronItem.month("Jan")
         self.assertIn(1, month_item.allowed_values)
         self.assertNotIn(2, month_item.allowed_values)
 
-        day_of_week_item: CronItem = CronItem.DayOfWeek("Mon")
+        day_of_week_item: CronItem = CronItem.day_of_week("Mon")
         self.assertIn(1, day_of_week_item.allowed_values)
         self.assertNotIn(0, day_of_week_item.allowed_values)
 
     def test_sunday_alias_and_full_week_range_matching(self) -> None:
         """Verifies that 0-7 and 1-7 full week ranges match all days and set is_wildcard."""
-        dow_range_0_7: CronItem = CronItem.DayOfWeek("0-7")
-        dow_range_1_7: CronItem = CronItem.DayOfWeek("1-7")
+        dow_range_0_7: CronItem = CronItem.day_of_week("0-7")
+        dow_range_1_7: CronItem = CronItem.day_of_week("1-7")
 
         self.assertTrue(dow_range_0_7.is_wildcard)
         self.assertTrue(dow_range_1_7.is_wildcard)
@@ -143,7 +143,10 @@ class TestCronExpression(unittest.TestCase):
     def test_invalid_cron_interval_raises_value_error(self) -> None:
         """Verifies that non-numeric or negative intervals raise a ValueError."""
         with self.assertRaises(ValueError):
-            CronItem.Minute("*/invalid")
+            CronItem.minute("*/invalid")
 
         with self.assertRaises(ValueError):
-            CronItem.Minute("*/0")
+            CronItem.minute("*/0")
+
+        with self.assertRaises(ValueError):
+            CronItem.minute("*/-5")

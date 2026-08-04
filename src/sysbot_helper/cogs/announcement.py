@@ -1,11 +1,11 @@
 from discord import slash_command
 
-from . import CogSendError
+from . import ErrorHandlingCog
 from .checks import is_sudo
 from .utils import DiscordTextParser
 
 
-class Announcement(CogSendError):
+class Announcement(ErrorHandlingCog):
     def __init__(self, bot):
         self.bot = bot
 

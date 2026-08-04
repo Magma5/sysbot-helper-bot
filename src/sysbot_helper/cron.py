@@ -474,27 +474,27 @@ class CronItem:
     )
 
     @classmethod
-    def Second(cls, item_expression: str) -> "CronItem":
+    def second(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 0, 59)
 
     @classmethod
-    def Minute(cls, item_expression: str) -> "CronItem":
+    def minute(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 0, 59)
 
     @classmethod
-    def Hour(cls, item_expression: str) -> "CronItem":
+    def hour(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 0, 23)
 
     @classmethod
-    def Day(cls, item_expression: str) -> "CronItem":
+    def day(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 1, 31)
 
     @classmethod
-    def Month(cls, item_expression: str) -> "CronItem":
+    def month(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 1, 12, _MONTH_NAMES)
 
     @classmethod
-    def DayOfWeek(cls, item_expression: str) -> "CronItem":
+    def day_of_week(cls, item_expression: str) -> "CronItem":
         return cls(item_expression, 0, 7, _DAY_NAMES, is_day_of_week=True)
 
     def __init__(
@@ -688,12 +688,12 @@ class CronExpression:
             day_of_week_token,
         ) = expression_tokens[:EXTENDED_CRON_FIELD_COUNT]
 
-        self.second = [CronItem.Second(token) for token in second_token.split(",")]
-        self.minute = [CronItem.Minute(token) for token in minute_token.split(",")]
-        self.hour = [CronItem.Hour(token) for token in hour_token.split(",")]
-        self.day = [CronItem.Day(token) for token in day_token.split(",")]
-        self.month = [CronItem.Month(token) for token in month_token.split(",")]
-        self.day_of_week = [CronItem.DayOfWeek(token) for token in day_of_week_token.split(",")]
+        self.second = [CronItem.second(token) for token in second_token.split(",")]
+        self.minute = [CronItem.minute(token) for token in minute_token.split(",")]
+        self.hour = [CronItem.hour(token) for token in hour_token.split(",")]
+        self.day = [CronItem.day(token) for token in day_token.split(",")]
+        self.month = [CronItem.month(token) for token in month_token.split(",")]
+        self.day_of_week = [CronItem.day_of_week(token) for token in day_of_week_token.split(",")]
 
         self.matcher = CronMatcher(
             second=frozenset(v for item in self.second for v in item.allowed_values),

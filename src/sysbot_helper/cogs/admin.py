@@ -8,7 +8,7 @@ from discord.errors import HTTPException
 from discord.ext import commands
 from pydantic import BaseModel
 
-from . import CogSendError
+from . import ErrorHandlingCog
 from .checks import is_sudo
 
 
@@ -17,7 +17,7 @@ class ChannelAction(Enum):
     UNLOCK = 2
 
 
-class Admin(CogSendError):
+class Admin(ErrorHandlingCog):
     class Config(BaseModel):
         messages: dict[str, str]
         vote_valid_seconds: int = 300

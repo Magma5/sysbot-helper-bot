@@ -8,7 +8,7 @@ from discord import TextChannel
 from discord.ext import commands
 from yaml import safe_load
 
-from . import CogSendError
+from . import ErrorHandlingCog
 
 
 @dataclass
@@ -76,7 +76,7 @@ class BullshitGenerator:
         return " ".join(self.generate_sentence(theme, length))
 
 
-class Spam(CogSendError):
+class Spam(ErrorHandlingCog):
     def __init__(self, bot):
         self.bot = bot
 

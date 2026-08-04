@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord.ext.commands.errors import CheckFailure, UserInputError
 
 
-class CogSendError(commands.Cog):
+class ErrorHandlingCog(commands.Cog):
     async def cog_command_error(self, ctx, error):
         if isinstance(error, CheckFailure):
             if hasattr(ctx, "respond"):
