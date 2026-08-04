@@ -85,7 +85,7 @@ class CheckConnection(commands.Cog):
     def __init__(self, bot, config):
         self.bot = bot
         self.config = config
-        self.status = {name: False for name in self.config.checkers.keys()}
+        self.status = dict.fromkeys(self.config.checkers.keys(), False)
 
     @commands.Cog.listener()
     async def on_ready(self):

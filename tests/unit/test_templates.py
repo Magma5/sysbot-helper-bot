@@ -4,6 +4,7 @@ from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, TemplateSyntaxError
 from jinja2.sandbox import SecurityError
+
 from sysbot_helper.templates import TemplateEngine
 
 

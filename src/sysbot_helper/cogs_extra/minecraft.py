@@ -88,12 +88,9 @@ class Minecraft(commands.Cog):
             content = []
             if session.health:
                 content.append(
-                    "Health: %.1f, Food: %d, Saturation: %.1f"
-                    % (
-                        session.health.health,
-                        session.health.food,
-                        session.health.food_saturation,
-                    )
+                    f"Health: {session.health.health:.1f}, "
+                    f"Food: {session.health.food}, "
+                    f"Saturation: {session.health.food_saturation:.1f}"
                 )
             if session.position_and_look:
                 pos = session.position_and_look

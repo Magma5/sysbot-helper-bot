@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
+
 from sysbot_helper.api import APIServer
 from sysbot_helper.bot import Bot
 from sysbot_helper.cogs.api_messages import ApiMessages

@@ -59,4 +59,4 @@ select = [
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
 ]
-ignore = ["I001", "UP031", "C420"]
+ignore = []
