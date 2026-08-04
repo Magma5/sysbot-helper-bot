@@ -49,6 +49,9 @@ asyncio_mode = "auto"
 target-version = "py312"
 line-length = 120
 
+[tool.ruff.format]
+line-ending = "lf"
+
 [tool.ruff.lint]
 select = [
     "B",   # flake8-bugbear
