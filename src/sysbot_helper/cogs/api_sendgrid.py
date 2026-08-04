@@ -42,9 +42,9 @@ class ApiSendgrid(commands.Cog):
 
         body = await request.post()
         content = []
-        content.append(f'**From**: {body_get(body, "from")}')
-        content.append(f'**To**: {body_get(body, "to")}')
-        content.append(f'**Subject**: {body_get(body, "subject")}')
+        content.append(f"**From**: {body_get(body, 'from')}")
+        content.append(f"**To**: {body_get(body, 'to')}")
+        content.append(f"**Subject**: {body_get(body, 'subject')}")
         content.append("")
 
         files = []

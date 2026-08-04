@@ -44,9 +44,9 @@ def test_bot_initialization_and_cog_loading(
     }
 
     for expected_cog_name in expected_cog_names:
-        assert (
-            expected_cog_name in loaded_cog_names
-        ), f"Expected cog '{expected_cog_name}' was not loaded into the bot instance!"
+        assert expected_cog_name in loaded_cog_names, (
+            f"Expected cog '{expected_cog_name}' was not loaded into the bot instance!"
+        )
 
 
 def test_bot_initialization_fails_on_invalid_config(

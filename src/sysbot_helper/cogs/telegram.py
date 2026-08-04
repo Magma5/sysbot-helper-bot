@@ -27,7 +27,7 @@ class ChatLink(BaseModel):
     channel: int
     chat: int
     discord_message: str = (
-        '**{{ message.from_user.first_name or "" }} ' '{{ message.from_user.last_name or "" }}**: {{ text }}'
+        '**{{ message.from_user.first_name or "" }} {{ message.from_user.last_name or "" }}**: {{ text }}'
     )
     telegram_message: str = "<b>{{ message.author.name }}</b>: {{message.clean_content | e}}"
 

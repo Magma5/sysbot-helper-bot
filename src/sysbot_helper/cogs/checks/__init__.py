@@ -14,7 +14,7 @@ def is_sudo():
 def is_in_any(*groups):
     async def predicate(ctx):
         if not ctx.groups.in_group_any(ctx.author.id, *groups):
-            raise CheckFailure(f'You are not in any group: {",".join(groups)}')
+            raise CheckFailure(f"You are not in any group: {','.join(groups)}")
         return True
 
     return check(predicate)
