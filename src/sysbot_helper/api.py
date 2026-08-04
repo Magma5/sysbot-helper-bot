@@ -103,7 +103,7 @@ class APIRouter:
         """
         routes = web.RouteTableDef()
 
-        for name, bound_method in inspect.getmembers(instance, predicate=inspect.ismethod):
+        for _, bound_method in inspect.getmembers(instance, predicate=inspect.ismethod):
             underlying_func = getattr(bound_method, "__func__", bound_method)
             specs = getattr(underlying_func, "__route_specs__", None)
 
