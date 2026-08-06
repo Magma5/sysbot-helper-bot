@@ -23,10 +23,20 @@ def bot_main():
         default="config.yml",
         help="Config file(s) to use for the bot.",
     )
+    parser.add_argument(
+        "--check",
+        "-c",
+        action="store_true",
+        help="Validate the configuration file(s) and exit without starting services.",
+    )
     parser.add_argument("--alembic", nargs=argparse.REMAINDER, help="Invoke alembic command.")
 
     # Run argument parser
     args = parser.parse_args()
+
+    # Run configuration check and exit if requested
+    if args.check:
+        raise SystemExit(run_config_check(args.config_file))
 
     # Run alembic migration and exit if needed
     if args.alembic is not None:
@@ -36,6 +46,25 @@ def bot_main():
         asyncio.run(bot_start(args.config_file))
     except KeyboardInterrupt:
         log.info("Shutdown signal received (SIGINT). Exiting cleanly.")
+
+
+def run_config_check(config_files: list[Path]) -> int:
+    """Validate configuration files and return exit status code (0 for success, 1 for failure)."""
+    has_errors = False
+    for config_file in config_files:
+        if not config_file.exists():
+            log.error("[FAIL] Config file '%s' does not exist.", config_file)
+            has_errors = True
+            continue
+
+        try:
+            cogs = Bot.validate_file(config_file)
+            log.info("[OK] Config file '%s' is valid (%d cogs loaded: %s)", config_file, len(cogs), ", ".join(cogs))
+        except Exception as err:
+            log.error("[FAIL] Config file '%s' validation error: %s: %s", config_file, type(err).__name__, err)
+            has_errors = True
+
+    return 1 if has_errors else 0
 
 
 def run_alembic(config_files: list[Path], alembic_argv):

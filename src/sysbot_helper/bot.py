@@ -49,6 +49,14 @@ class Bot(Base):
         bot.config_file = config_file
         return bot
 
+    @classmethod
+    def validate_file(cls, config_file: Path | str, **bot_args) -> list[str]:
+        """Validates a configuration file without starting services or making network requests.
+        Returns a list of loaded cog names if valid, or raises an exception if invalid.
+        """
+        bot = cls.from_file(config_file, **bot_args)
+        return sorted(bot.cog_list)
+
     def __init__(self, config_dict: dict, **bot_args):
         intents = Intents.default()
         intents.members = True
