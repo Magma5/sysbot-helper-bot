@@ -44,6 +44,9 @@ packages = ["src/sysbot_helper"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: mark a test as an integration test",
+]
 
 [tool.ruff]
 target-version = "py312"

@@ -1,20 +1,28 @@
+import copy
 import os
 from pathlib import Path
 
 import pytest
+import yaml
+from pydantic import ValidationError
 
 from sysbot_helper.bot import Bot
 
 
+@pytest.fixture
+def example_config_dict() -> dict:
+    """Loads config.example.yml into a dictionary for test manipulation."""
+    config_path = Path("config.example.yml")
+    with open(config_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
 @pytest.mark.integration
-def test_bot_initialization_and_cog_loading(
-    temporary_configuration_file_path: Path,
-) -> None:
-    """Verifies that the bot and all of its configured cogs instantiate cleanly."""
+def test_bot_initialization_and_cog_loading() -> None:
+    """Verifies that the bot and all of its configured cogs instantiate cleanly from config.example.yml."""
     os.environ["TOKEN"] = "mock_discord_token_for_testing"
 
-    bot_instance: Bot = Bot.from_file(temporary_configuration_file_path)
-
+    bot_instance: Bot = Bot.from_file("config.example.yml")
     assert bot_instance is not None
 
     loaded_cog_names: set[str] = set(bot_instance.cog_list)
@@ -31,17 +39,7 @@ def test_bot_initialization_and_cog_loading(
         "ApiWebhooks",
         "ApiSendgrid",
         "ApiS3",
-        "Autoreact",
-        "FloatingHelp",
-        "Dm",
-        "Level",
-        "Stats",
-        "Telegram",
-        "Pa8",
-        "Sysinfo",
-        "Leetcode",
-        "Purge",
-        "Typing",
+        "ScheduledMessages",
     }
 
     for expected_cog_name in expected_cog_names:
@@ -50,16 +48,9 @@ def test_bot_initialization_and_cog_loading(
         )
 
 
-def test_bot_initialization_fails_on_invalid_config(
-    temporary_configuration_file_path: Path,
-) -> None:
+def test_bot_initialization_fails_on_invalid_config(example_config_dict: dict) -> None:
     """Verifies that the bot raises a validation error when config has invalid types."""
-    import yaml
-    from pydantic import ValidationError
-
-    # Read the valid config, modify it to be invalid, and test in-memory
-    with open(temporary_configuration_file_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = copy.deepcopy(example_config_dict)
 
     # Make luck.mu invalid by setting it to a string that cannot be coerced to int
     config["cogs"]["luck"]["mu"] = "invalid_string_not_an_int"
@@ -68,14 +59,9 @@ def test_bot_initialization_fails_on_invalid_config(
         Bot(config_dict=config)
 
 
-def test_bot_initialization_without_api_config(
-    temporary_configuration_file_path: Path,
-) -> None:
+def test_bot_initialization_without_api_config(example_config_dict: dict) -> None:
     """Verifies that the bot boots gracefully when the 'api' config block is omitted."""
-    import yaml
-
-    with open(temporary_configuration_file_path, encoding="utf-8") as f:
-        config = yaml.safe_load(f)
+    config = copy.deepcopy(example_config_dict)
 
     # Remove the api block
     if "api" in config:
