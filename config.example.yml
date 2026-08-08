@@ -14,7 +14,6 @@ cogs:
         cron: "H H * * *"
         template: "Good morning! It is {{ time.now.strftime('%-I:%M %p') }}"
   sysbot:
-
     ip: 192.168.0.1
     port: 6000
   commands:
@@ -49,7 +48,7 @@ cogs:
     mu: 80
     sigma: 9
     max_luck: 100
-    rating_levels: [55,60,65,70,75,80,85,90,95,100]
+    rating_levels: [55, 60, 65, 70, 75, 80, 85, 90, 95, 100]
     rating_stars: "★☆"
   variables:
     weekdays:
@@ -69,12 +68,10 @@ cogs:
       unlock: ':green_circle: **Channel unlocked.** This bot is now online and ready to use.'
   time:
     timezone: Europe/Berlin
-
   api_messages: {}
   api_health: {}
   api_webhooks: {}
   api_sendgrid: {}
   api_s3: {}
-
 api:
   port: 8080
