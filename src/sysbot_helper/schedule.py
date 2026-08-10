@@ -9,11 +9,11 @@ from .cron import CronExpression
 log = logging.getLogger(__name__)
 
 
-def scheduled(*args, **kwargs):
+def scheduled(*args, single_instance: bool = False, **kwargs):
     """Decorator for making a scheduled task from a callback function."""
 
     def decorator(func):
-        task = ScheduledTask(*args, callback=func, **kwargs)
+        task = ScheduledTask(*args, callback=func, single_instance=single_instance, **kwargs)
         return task
 
     return decorator
@@ -22,17 +22,25 @@ def scheduled(*args, **kwargs):
 class ScheduledTask:
     """Represents a scheduled task with associated cron expression schedules."""
 
-    def __init__(self, *cron_expr: str, callback: Any, on_ready: bool = False) -> None:
+    def __init__(self, *cron_expr: str, callback: Any, on_ready: bool = False, single_instance: bool = False) -> None:
         self.raw_schedules = cron_expr
         self.callback = callback
         self.on_ready = on_ready
+        self.single_instance = single_instance
         self.cron_schedules: list[CronExpression] = []
         self.last_run: datetime | None = None
+        self._active_task: asyncio.Task | None = None
+        self._is_running: bool = False
 
     def bind_to_cog(self, cog: Any) -> None:
         """Binds the scheduled task to a cog and compiles cron expressions with dynamic seeding."""
         seed_name = f"{cog.__class__.__name__}.{self.callback.__name__}"
         self.cron_schedules = [CronExpression(expr, seed=seed_name) for expr in self.raw_schedules]
+
+    @property
+    def is_running(self) -> bool:
+        """Checks if the task is currently executing."""
+        return self._is_running or (self._active_task is not None and not self._active_task.done())
 
     @property
     def has_seconds_precision(self) -> bool:
@@ -59,12 +67,26 @@ class ScheduledTask:
             return
 
         if self.match(normalized_dt):
+            if self.single_instance and self.is_running:
+                self.last_run = normalized_dt
+                log.warning(
+                    "Task %s.%s is already running. Skipping execution tick.",
+                    cog.__class__.__name__,
+                    self.callback.__name__,
+                )
+                return
             self.last_run = normalized_dt
             await self.invoke(cog)
 
     async def invoke(self, cog: Any) -> None:
         """Directly executes the target callback function on the cog instance."""
-        await self.callback(cog)
+        self._is_running = True
+        self._active_task = asyncio.current_task()
+        try:
+            await self.callback(cog)
+        finally:
+            self._is_running = False
+            self._active_task = None
 
 
 class TaskScheduler:
@@ -98,8 +120,11 @@ class TaskScheduler:
             self._use_seconds_precision = self.has_sub_minute_tasks()
 
     def unregister_cog_tasks(self, cog_name: str) -> None:
-        """Removes all tasks registered under the specified cog name."""
-        self.tasks.pop(cog_name, None)
+        """Removes all tasks registered under the specified cog name and cancels active running instances."""
+        tasks_list = self.tasks.pop(cog_name, [])
+        for _, scheduled_task in tasks_list:
+            if scheduled_task._active_task and not scheduled_task._active_task.done():
+                scheduled_task._active_task.cancel()
         self._use_seconds_precision = self.has_sub_minute_tasks()
 
     def has_sub_minute_tasks(self) -> bool:
@@ -155,6 +180,8 @@ class TaskScheduler:
         task_snapshots = list(self.tasks.values())
         for task_list in task_snapshots:
             for cog, task in task_list:
+                if task.single_instance and task.is_running:
+                    continue
                 tasks.append(
                     asyncio.wait_for(
                         task.try_invoke(cog, now, on_ready),
@@ -167,5 +194,5 @@ class TaskScheduler:
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for result in results:
-            if isinstance(result, Exception):
+            if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
                 log.exception("Unhandled exception while executing scheduled task", exc_info=result)

@@ -1,33 +1,173 @@
 import asyncio
-from collections import defaultdict, deque
+import logging
 from contextlib import suppress
 from dataclasses import dataclass, field
+from enum import Enum, auto
 from time import time
 
-from discord.errors import HTTPException
+from discord import HTTPException, NotFound, TextChannel
 from discord.ext import commands
 from pydantic import BaseModel
 
 from sysbot_helper import Bot, scheduled
 
+log = logging.getLogger(__name__)
+
+
+class WorkerEventType(Enum):
+    MSG_RECEIVED = auto()
+    FORCE_REFRESH = auto()
+    STOP = auto()
+
 
 @dataclass
-class ChannelInfo:
-    message_text: str = None
-    last_activity: float = field(default_factory=time)
-    message_history: deque = field(default_factory=deque)
+class WorkerEvent:
+    event_type: WorkerEventType
+    message_text: str = ""
+    timestamp: float = field(default_factory=time)
 
-    # Wait for channel inactive to refresh a message
-    wait: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    # Lock the deque object for each channel
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+class ChannelWorker:
+    """Single-writer worker managing floating help state for a single channel."""
 
-    def update_active(self):
+    def __init__(self, channel_id: int, cog: "FloatingHelp"):
+        self.channel_id = channel_id
+        self.cog = cog
+        self.queue: asyncio.Queue[WorkerEvent] = asyncio.Queue()
+        self.task: asyncio.Task | None = None
+        self.last_activity: float = time()
+        self.active_message_id: int | None = None
+        self.message_text: str = ""
+
+    def start(self) -> None:
+        """Starts the background processing task if not already running."""
+        if self.task is None or self.task.done():
+            self.task = asyncio.create_task(self._run_loop())
+
+    async def stop(self) -> None:
+        """Stops the worker loop cleanly."""
+        await self.queue.put(WorkerEvent(WorkerEventType.STOP))
+        if self.task and not self.task.done():
+            self.task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self.task
+
+    def notify_message(self) -> None:
+        """Notifies worker of channel message activity."""
         self.last_activity = time()
+        # Coalesce: put MSG_RECEIVED only if queue is empty or last event isn't MSG_RECEIVED
+        self.queue.put_nowait(WorkerEvent(WorkerEventType.MSG_RECEIVED))
 
-    def is_idle(self, activity_wait):
-        return time() - self.last_activity > activity_wait
+    def notify_force_refresh(self, message_text: str) -> None:
+        """Requests an immediate or scheduled refresh with updated template text."""
+        self.message_text = message_text
+        self.queue.put_nowait(WorkerEvent(WorkerEventType.FORCE_REFRESH, message_text=message_text))
+
+    async def _run_loop(self) -> None:
+        while True:
+            try:
+                event = await self.queue.get()
+                if event.event_type == WorkerEventType.STOP:
+                    break
+
+                if event.event_type == WorkerEventType.MSG_RECEIVED:
+                    await self._wait_for_quiet_period()
+
+                # Drain redundant MSG_RECEIVED events to collapse activity bursts
+                self._drain_queue()
+
+                await self._refresh_message()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                log.exception("Error in ChannelWorker for channel %s. Backing off.", self.channel_id)
+                await asyncio.sleep(5)
+
+    def _drain_queue(self) -> None:
+        """Drains extra enqueued activity signals to prevent queue bloat."""
+        while not self.queue.empty():
+            try:
+                event = self.queue.get_nowait()
+                if event.event_type == WorkerEventType.STOP:
+                    self.queue.put_nowait(event)
+                    break
+                if event.event_type == WorkerEventType.FORCE_REFRESH and event.message_text:
+                    self.message_text = event.message_text
+            except asyncio.QueueEmpty:
+                break
+
+    async def _wait_for_quiet_period(self) -> None:
+        """Waits until channel is idle for channel_activity_wait seconds."""
+        quiet_seconds = self.cog.config.channel_activity_wait
+        while True:
+            elapsed = time() - self.last_activity
+            remaining = quiet_seconds - elapsed
+            if remaining <= 0:
+                break
+
+            try:
+                event = await asyncio.wait_for(self.queue.get(), timeout=remaining)
+                if event.event_type == WorkerEventType.STOP:
+                    self.queue.put_nowait(event)
+                    raise asyncio.CancelledError()
+                if event.event_type == WorkerEventType.FORCE_REFRESH and event.message_text:
+                    self.message_text = event.message_text
+            except TimeoutError:
+                break
+
+    async def _refresh_message(self) -> None:
+        channel = self.cog.bot.get_channel(self.channel_id)
+        if not isinstance(channel, TextChannel) or self.cog.should_skip(channel):
+            return
+
+        variables = self.cog.bot.template_variables(channel)
+        rendered_content = (
+            self.cog.bot.template_engine.render_string(self.message_text, variables).strip()
+            + self.cog.config.magic_space
+        )
+
+        last_msg = None
+        async for msg in channel.history(limit=1):
+            last_msg = msg
+
+        # Case 1: Floating help is already the latest message in the channel
+        if last_msg and (
+            last_msg.id == self.active_message_id
+            or (last_msg.author == self.cog.bot.user and last_msg.content.endswith(self.cog.config.magic_space))
+        ):
+            self.active_message_id = last_msg.id
+            if last_msg.content == rendered_content:
+                return
+
+            try:
+                await last_msg.edit(content=rendered_content)
+                return
+            except NotFound:
+                self.active_message_id = None
+            except HTTPException as e:
+                log.warning("Failed to edit floating help in channel %s: %s", self.channel_id, e)
+                return
+
+        # Case 2: Latest message is a user message or floating help missing at bottom
+        await self._purge_old_floating_messages(channel)
+
+        try:
+            new_msg = await channel.send(rendered_content)
+            self.active_message_id = new_msg.id
+        except HTTPException as e:
+            log.warning("Failed to send floating help message in channel %s: %s", self.channel_id, e)
+
+    async def _purge_old_floating_messages(self, channel: TextChannel) -> None:
+        """Purges old floating help messages from history."""
+        try:
+            async for msg in channel.history(limit=self.cog.config.check_message_history):
+                if msg.author == self.cog.bot.user and msg.content.endswith(self.cog.config.magic_space):
+                    if msg.id == self.active_message_id:
+                        continue
+                    with suppress(HTTPException, NotFound):
+                        await msg.delete()
+        except (HTTPException, NotFound):
+            pass
 
 
 class FloatingHelp(commands.Cog):
@@ -43,110 +183,45 @@ class FloatingHelp(commands.Cog):
     def __init__(self, bot: Bot, config: Config):
         self.bot = bot
         self.config = config
+        self.workers: dict[int, ChannelWorker] = {}
 
-        self.channels: dict[int, ChannelInfo] = defaultdict(ChannelInfo)
-        self.inactive_channels: set[int] = set()
+    def cog_unload(self) -> None:
+        """Cancels active worker tasks upon cog unregistration."""
+        for worker in list(self.workers.values()):
+            if worker.task and not worker.task.done():
+                worker.task.cancel()
+        self.workers.clear()
 
-    @property
-    def resolved_channels(self):
-        return list(self.bot.channels_in_group(*self.config.channels.keys()))
-
-    async def get_message_history(self, channel_id):
-        channel = self.bot.get_channel(channel_id)
-
-        # history() returns message from newest to oldest
-        async for message in channel.history(limit=self.config.check_message_history):
-            if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
-                yield message
-
-    async def refresh_message(self, channel_id):
-        channel = self.bot.get_channel(channel_id)
-        info = self.channels[channel_id]
-
-        # Render template
-        variables = self.bot.template_variables(channel)
-        content = self.bot.template_engine.render_string(info.message_text, variables).strip() + self.config.magic_space
-
-        # Use API to retrieve history, so that it handles deleted messages as well
-        last_message_id = 0
-        async for message in channel.history(limit=1):
-            last_message_id = message.id
-
-        async with info.lock:
-            # Check if channel needs skip
-            if self.should_skip(channel):
-                # Delete every single old messages
-                for msg in info.message_history:
-                    with suppress(HTTPException):
-                        await msg.delete()
-                return info.message_history.clear()
-
-            # Refresh message history if not present
-            if not info.message_history:
-                async for msg in self.get_message_history(channel.id):
-                    info.message_history.append(msg)
-
-            # Try to clean old messages except the last message
-            while info.message_history and info.message_history[-1].id != last_message_id:
-                with suppress(HTTPException):
-                    await info.message_history.pop().delete()
-
-            # Edit the last message if possible, otherwise send a new one.
-            try:
-                if info.message_history[-1].content != content:
-                    await info.message_history[-1].edit(content=content)
-                    return True
-                return False
-            except (IndexError, HTTPException):
-                # Send new message, if history is empty
-                message = await channel.send(content)
-                info.message_history.append(message)
-                return True
-
-    def should_skip(self, channel):
-        if channel.id in self.inactive_channels:
+    def should_skip(self, channel: TextChannel) -> bool:
+        if getattr(channel, "guild", None) is None:
             return True
         perms = channel.permissions_for(channel.guild.default_role)
         return self.config.skip_locked_channels and perms.send_messages is False
 
-    @scheduled("*/10 * * * * *")
-    async def auto_refresh(self):
-        await self._auto_refresh()
-
-    async def _auto_refresh(self):
-        # Refresh all the channels
-        channel_ids = set()
+    @scheduled("*/10 * * * * *", on_ready=True, single_instance=True)
+    async def auto_refresh(self) -> None:
+        """Periodic auto-refresh tick discovering channels and routing worker notifications."""
+        active_channel_ids = set()
         for name, message_text in self.config.channels.items():
             for channel in self.bot.get_channels_in_group(name):
-                self.channels[channel.id].message_text = message_text
-                channel_ids.add(channel.id)
+                active_channel_ids.add(channel.id)
+                if channel.id not in self.workers:
+                    self.workers[channel.id] = ChannelWorker(channel.id, self)
+                    self.workers[channel.id].start()
+                self.workers[channel.id].notify_force_refresh(message_text)
 
-        # Find out which channels are no longer part of the list
-        self.inactive_channels = self.channels.keys() - channel_ids
-
-        for channel_id, info in self.channels.items():
-            if info.wait.locked():
-                continue
-
-            await self.refresh_message(channel_id)
+        # Clean up workers for channels that were removed from config
+        stale_ids = set(self.workers.keys()) - active_channel_ids
+        for channel_id in stale_ids:
+            worker = self.workers.pop(channel_id, None)
+            if worker:
+                await worker.stop()
 
     @commands.Cog.listener("on_message")
-    async def on_message(self, message):
-        channel = message.channel
-
-        if channel.id not in self.channels:
+    async def on_message(self, message) -> None:
+        if message.author == self.bot.user or message.content.endswith(self.config.magic_space):
             return
 
-        if message.author == self.bot.user and message.content.endswith(self.config.magic_space):
-            return
-
-        info = self.channels[channel.id]
-        info.update_active()
-
-        if info.wait.locked():
-            return
-
-        async with info.wait:
-            while not info.is_idle(self.config.channel_activity_wait):
-                await asyncio.sleep(0.29)
-            await self.refresh_message(channel.id)
+        worker = self.workers.get(message.channel.id)
+        if worker:
+            worker.notify_message()
