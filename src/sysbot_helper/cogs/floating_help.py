@@ -162,8 +162,6 @@ class ChannelWorker:
         try:
             async for msg in channel.history(limit=self.cog.config.check_message_history):
                 if msg.author == self.cog.bot.user and msg.content.endswith(self.cog.config.magic_space):
-                    if msg.id == self.active_message_id:
-                        continue
                     with suppress(HTTPException, NotFound):
                         await msg.delete()
         except (HTTPException, NotFound):
@@ -219,7 +217,7 @@ class FloatingHelp(commands.Cog):
 
     @commands.Cog.listener("on_message")
     async def on_message(self, message) -> None:
-        if message.author == self.bot.user or message.content.endswith(self.config.magic_space):
+        if message.content.endswith(self.config.magic_space):
             return
 
         worker = self.workers.get(message.channel.id)
