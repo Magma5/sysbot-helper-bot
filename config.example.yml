@@ -74,7 +74,7 @@ cogs:
   countdown:
     default_timezone: UTC
     events:
-      new_year: "2027-01-01T00:00:00Z"
+      new_year: "01-01"
       anniversary: "2024-05-01T00:00:00Z"
   api_messages: {}
   api_health: {}
