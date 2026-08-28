@@ -32,6 +32,9 @@ cogs:
         Today is {{ time.now.strftime('%F') }}, {{ variables.weekdays[time.now.weekday()] }}
       time: |
         Current server time: {{ time.now.strftime('%T') }}
+      /countdown: |
+        ⏳ **New Year**: {{ countdown.new_year.humanize() }} ({{ countdown.new_year.discord_relative }})
+        🎉 **Server running for**: {{ countdown.anniversary.days }} days (started {{ countdown.anniversary.discord_date }})
       /luck: |
         Your luck today: {{ "%.1f/%d" | format(luck.luck, luck.max_luck) }}
         Rating: {{ luck.luck_rating }}
@@ -68,6 +71,11 @@ cogs:
       unlock: ':green_circle: **Channel unlocked.** This bot is now online and ready to use.'
   time:
     timezone: Europe/Berlin
+  countdown:
+    default_timezone: UTC
+    events:
+      new_year: "2027-01-01T00:00:00Z"
+      anniversary: "2024-05-01T00:00:00Z"
   api_messages: {}
   api_health: {}
   api_webhooks: {}

@@ -20,6 +20,7 @@ dependencies = [
     "iso8601>=2.1.0,<3.0.0",
     "python-slugify>=8.0.4,<9.0.0",
     "markdownify>=1.2.3,<2.0.0",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [project.scripts]
