@@ -6,7 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.dispatcher.dispatcher import Dispatcher
 from aiogram.exceptions import AiogramError
-from aiogram.types import BufferedInputFile, LinkPreviewOptions
+from aiogram.types import BufferedInputFile, LinkPreviewOptions, ReplyParameters
 from aiogram.types import Message as TelegramMessage
 from discord import Attachment, Message, MessageReference
 from discord.ext import commands, tasks
@@ -158,11 +158,12 @@ class Telegram(commands.Cog):
         )
 
         ref_id = await self.get_by_discord(message.reference)
+        reply_params = ReplyParameters(message_id=ref_id) if ref_id else None
         msg = await self.bots[chat_link.bot].send_message(
-            chat_link.chat,
-            link_preview_options=LinkPreviewOptions(is_disabled=True),
+            chat_id=chat_link.chat,
             text=text,
-            reply_to_message_id=ref_id,
+            link_preview_options=LinkPreviewOptions(is_disabled=True),
+            reply_parameters=reply_params,
         )
 
         await self.add_message_mapping(message, msg)
@@ -172,7 +173,9 @@ class Telegram(commands.Cog):
             data = await attachment.read()
             telegram_document = BufferedInputFile(data, attachment.filename)
             doc_msg = await self.bots[chat_link.bot].send_document(
-                chat_link.chat, telegram_document, reply_to_message_id=msg.message_id
+                chat_id=chat_link.chat,
+                document=telegram_document,
+                reply_parameters=ReplyParameters(message_id=msg.message_id),
             )
             await self.add_message_mapping(message, doc_msg, attachment)
 
@@ -193,9 +196,9 @@ class Telegram(commands.Cog):
         telegram_id = await self.get_by_discord(after)
         if telegram_id:
             await self.bots[chat_link.bot].edit_message_text(
-                text,
-                chat_link.chat,
-                telegram_id,
+                chat_id=chat_link.chat,
+                message_id=telegram_id,
+                text=text,
                 link_preview_options=LinkPreviewOptions(is_disabled=True),
             )
 
@@ -208,7 +211,7 @@ class Telegram(commands.Cog):
         telegram_ids = await self.get_all_by_discord(message)
         for id in telegram_ids:
             # Note: the bot may not have the permission to delete message.
-            await self.bots[chat_link.bot].delete_message(chat_link.chat, id)
+            await self.bots[chat_link.bot].delete_message(chat_id=chat_link.chat, message_id=id)
 
     @commands.Cog.listener()
     async def on_bulk_message_delete(self, messages: list[Message]):
@@ -220,7 +223,7 @@ class Telegram(commands.Cog):
 
         telegram_ids = await self.get_all_by_discord(*messages)
         for id in telegram_ids:
-            await self.bots[chat_link.bot].delete_message(chat_link.chat, id)
+            await self.bots[chat_link.bot].delete_message(chat_id=chat_link.chat, message_id=id)
 
     async def message_handler(self, message: TelegramMessage):
         """Receive telegram message, send to discord."""

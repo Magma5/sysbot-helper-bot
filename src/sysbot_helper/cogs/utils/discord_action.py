@@ -57,7 +57,7 @@ class DiscordMessage:
                 discord_msg.add_file(sticker_file, f"{sticker.file_unique_id}.gz")
             else:
                 img = Image.open(sticker_file)
-                img.thumbnail((160, 160), Image.ANTIALIAS)
+                img.thumbnail((160, 160), Image.Resampling.LANCZOS)
                 thumb = BytesIO()
                 img.save(thumb, "webp")
                 thumb.seek(0)
