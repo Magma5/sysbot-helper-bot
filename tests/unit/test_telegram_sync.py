@@ -1,8 +1,23 @@
 import unittest
+from datetime import datetime
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aiogram.types import LinkPreviewOptions, ReplyParameters
+from aiogram.types import (
+    Chat as TelegramChat,
+)
+from aiogram.types import (
+    LinkPreviewOptions,
+    MessageEntity,
+    ReplyParameters,
+    Update,
+)
+from aiogram.types import (
+    Message as TelegramMessage,
+)
+from aiogram.types import (
+    User as TelegramUser,
+)
 from PIL import Image
 
 from sysbot_helper.cogs.telegram import ChatLink, Telegram
@@ -117,6 +132,72 @@ class TestTelegramSync(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.mock_aiogram_bot.delete_message.await_count, 2)
         self.mock_aiogram_bot.delete_message.assert_any_await(chat_id=200, message_id=501)
         self.mock_aiogram_bot.delete_message.assert_any_await(chat_id=200, message_id=502)
+
+    async def test_message_handler_via_dispatcher_feed_update(self) -> None:
+        mock_channel = AsyncMock()
+        self.mock_bot.get_channel.return_value = mock_channel
+        self.mock_bot.template_engine.render_string.side_effect = lambda template, variables: (
+            f"Forwarded: {variables.get('text', '')}"
+        )
+
+        with (
+            patch.object(self.telegram_cog, "get_by_telegram", new=AsyncMock(return_value=None)),
+            patch.object(self.telegram_cog, "add_message_mapping", new=AsyncMock()),
+        ):
+            telegram_message = TelegramMessage(
+                message_id=601,
+                date=datetime.now(),
+                chat=TelegramChat(id=200, type="group"),
+                from_user=TelegramUser(id=701, is_bot=False, first_name="Tester"),
+                text="Inbound telegram text",
+            )
+            update = Update(update_id=1, message=telegram_message)
+
+            await self.telegram_cog.dp.feed_update(self.mock_aiogram_bot, update)
+
+        mock_channel.send.assert_awaited_once_with(content="Forwarded: Inbound telegram text")
+
+    async def test_edited_message_handler_includes_unparsed_text_entities(self) -> None:
+        mock_channel = MagicMock()
+        mock_partial_message = AsyncMock()
+        mock_channel.get_partial_message.return_value = mock_partial_message
+        self.mock_bot.get_channel.return_value = mock_channel
+        self.mock_bot.template_engine.render_string.side_effect = lambda template, variables: (
+            f"Edited: {variables.get('text', '')}"
+        )
+
+        with patch.object(self.telegram_cog, "get_by_telegram", new=AsyncMock(return_value=801)):
+            telegram_message = TelegramMessage(
+                message_id=602,
+                date=datetime.now(),
+                chat=TelegramChat(id=200, type="group"),
+                from_user=TelegramUser(id=701, is_bot=False, first_name="Tester"),
+                text="Edited bold note",
+                entities=[MessageEntity(type="bold", offset=7, length=4)],
+            )
+            update = Update(update_id=2, edited_message=telegram_message)
+
+            await self.telegram_cog.dp.feed_update(self.mock_aiogram_bot, update)
+
+        mock_channel.get_partial_message.assert_called_once_with(801)
+        mock_partial_message.edit.assert_awaited_once_with(content="Edited: Edited **bold** note")
+
+    async def test_cog_lifecycle_and_unload(self) -> None:
+        with patch.object(self.telegram_cog.check_updates, "start") as mock_start:
+            self.telegram_cog.check_updates._is_running = False
+            await self.telegram_cog.on_ready()
+            mock_start.assert_called_once()
+
+        mock_close = AsyncMock()
+        with (
+            patch.object(self.telegram_cog.check_updates, "cancel") as mock_cancel,
+            patch.object(self.telegram_cog.session, "close", new=mock_close),
+        ):
+            self.telegram_cog.cog_unload()
+            mock_cancel.assert_called_once()
+            self.mock_bot.loop.create_task.assert_called_once()
+            await self.mock_bot.loop.create_task.call_args[0][0]
+            mock_close.assert_awaited_once()
 
     async def test_discord_message_from_telegram_static_sticker_resampling(self) -> None:
         image_stream = BytesIO()

@@ -59,6 +59,10 @@ class Telegram(commands.Cog):
         self.telegram_chats = {link.chat: link for link in config.chat_link}
         self.discord_channels = {link.channel: link for link in config.chat_link}
 
+        # Register message handlers
+        self.dp.message.register(self.message_handler)
+        self.dp.edited_message.register(self.edited_message_handler)
+
     async def add_message_mapping(
         self,
         discord_message: Message,
@@ -140,9 +144,11 @@ class Telegram(commands.Cog):
     @commands.Cog.listener()
     async def on_ready(self):
         if not self.check_updates.is_running():
-            self.dp.message.register(self.message_handler)
-            self.dp.edited_message.register(self.edited_message_handler)
             self.check_updates.start()
+
+    def cog_unload(self):
+        self.check_updates.cancel()
+        self.bot.loop.create_task(self.session.close())
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
@@ -210,7 +216,6 @@ class Telegram(commands.Cog):
         chat_link = self.discord_channels[message.channel.id]
         telegram_ids = await self.get_all_by_discord(message)
         for id in telegram_ids:
-            # Note: the bot may not have the permission to delete message.
             await self.bots[chat_link.bot].delete_message(chat_id=chat_link.chat, message_id=id)
 
     @commands.Cog.listener()
@@ -225,7 +230,7 @@ class Telegram(commands.Cog):
         for id in telegram_ids:
             await self.bots[chat_link.bot].delete_message(chat_id=chat_link.chat, message_id=id)
 
-    async def message_handler(self, message: TelegramMessage):
+    async def message_handler(self, message: TelegramMessage, bot: aiogram.Bot):
         """Receive telegram message, send to discord."""
 
         if not self.should_handle_telegram(message):
@@ -233,8 +238,8 @@ class Telegram(commands.Cog):
 
         chat_link = self.telegram_chats[message.chat.id]
         channel = self.bot.get_channel(chat_link.channel)
-
-        bot = aiogram.Bot.get_current()
+        if not channel:
+            return
 
         # Convert Telegram message to discord message
         discord_msg = await DiscordMessage.from_telegram(bot, message)
@@ -252,7 +257,7 @@ class Telegram(commands.Cog):
 
         await self.add_message_mapping(resp, message)
 
-    async def edited_message_handler(self, message: TelegramMessage):
+    async def edited_message_handler(self, message: TelegramMessage, bot: aiogram.Bot):
         """Sync telegram message edits to discord."""
 
         if not self.should_handle_telegram(message):
@@ -261,14 +266,14 @@ class Telegram(commands.Cog):
         chat_link = self.telegram_chats[message.chat.id]
 
         channel = self.bot.get_channel(chat_link.channel)
-
-        bot = aiogram.Bot.get_current()
+        if not channel:
+            return
 
         # Convert Telegram message to discord message
         discord_msg = await DiscordMessage.from_telegram(bot, message)
         discord_msg.update(chat_link.discord_message)
 
-        msg = discord_msg.get_send(self.bot, {"message": message})
+        msg = discord_msg.get_send(self.bot, {"message": message, "text": unparse_entities(message)})
 
         existing_id = await self.get_by_telegram(message)
         if existing_id:
@@ -290,4 +295,4 @@ class Telegram(commands.Cog):
             await self.session.close()
             self.check_updates.cancel()
         except AiogramError:
-            log.warn(exc_info=True)
+            log.warning("Aiogram update polling encountered an error", exc_info=True)
