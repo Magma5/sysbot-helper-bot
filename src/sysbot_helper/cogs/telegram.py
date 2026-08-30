@@ -6,6 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.dispatcher.dispatcher import Dispatcher
 from aiogram.exceptions import AiogramError
+from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, LinkPreviewOptions, ReplyParameters
 from aiogram.types import Message as TelegramMessage
 from discord import Attachment, Message, MessageReference
@@ -60,6 +61,7 @@ class Telegram(commands.Cog):
         self.discord_channels = {link.channel: link for link in config.chat_link}
 
         # Register message handlers
+        self.dp.message.register(self.delete_command_handler, Command("delete"))
         self.dp.message.register(self.message_handler)
         self.dp.edited_message.register(self.edited_message_handler)
 
@@ -229,6 +231,45 @@ class Telegram(commands.Cog):
         telegram_ids = await self.get_all_by_discord(*messages)
         for id in telegram_ids:
             await self.bots[chat_link.bot].delete_message(chat_id=chat_link.chat, message_id=id)
+
+    async def _safe_delete_telegram_message(self, bot: aiogram.Bot, chat_id: int, message_id: int) -> None:
+        """Safely delete a Telegram message, logging warnings on failure."""
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=message_id)
+        except Exception as error:
+            log.warning("Failed to delete telegram message %s in chat %s: %s", message_id, chat_id, error)
+
+    async def _delete_linked_discord_message(
+        self, channel_id: int, referenced_telegram_message: TelegramMessage
+    ) -> None:
+        """Find and delete the mapped Discord message corresponding to a Telegram message."""
+        discord_message_id = await self.get_by_telegram(referenced_telegram_message)
+        if not discord_message_id:
+            log.debug("No mapped Discord message found for Telegram message %s", referenced_telegram_message.message_id)
+            return
+
+        channel = self.bot.get_channel(channel_id) or self.bot.get_partial_messageable(channel_id)
+        if channel:
+            try:
+                await channel.get_partial_message(discord_message_id).delete()
+            except Exception as error:
+                log.warning(
+                    "Failed to delete discord message %s in channel %s: %s", discord_message_id, channel_id, error
+                )
+
+    async def delete_command_handler(self, message: TelegramMessage, bot: aiogram.Bot) -> None:
+        """Handle /delete command in Telegram to delete referenced Telegram and Discord messages."""
+        if not self.should_handle_telegram(message):
+            return
+
+        chat_link = self.telegram_chats[message.chat.id]
+        referenced_message = message.reply_to_message
+
+        if referenced_message:
+            await self._delete_linked_discord_message(chat_link.channel, referenced_message)
+            await self._safe_delete_telegram_message(bot, message.chat.id, referenced_message.message_id)
+
+        await self._safe_delete_telegram_message(bot, message.chat.id, message.message_id)
 
     async def message_handler(self, message: TelegramMessage, bot: aiogram.Bot):
         """Receive telegram message, send to discord."""

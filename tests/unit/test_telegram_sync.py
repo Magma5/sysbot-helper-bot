@@ -182,6 +182,57 @@ class TestTelegramSync(unittest.IsolatedAsyncioTestCase):
         mock_channel.get_partial_message.assert_called_once_with(801)
         mock_partial_message.edit.assert_awaited_once_with(content="Edited: Edited **bold** note")
 
+    async def test_delete_command_handler_with_reply_deletes_discord_and_telegram_messages(self) -> None:
+        mock_channel = MagicMock()
+        mock_partial_discord_message = AsyncMock()
+        mock_channel.get_partial_message.return_value = mock_partial_discord_message
+        self.mock_bot.get_channel.return_value = mock_channel
+
+        referenced_telegram_message = TelegramMessage(
+            message_id=602,
+            date=datetime.now(),
+            chat=TelegramChat(id=200, type="group"),
+            from_user=TelegramUser(id=701, is_bot=False, first_name="TargetUser"),
+            text="Message to delete",
+        )
+
+        command_telegram_message = TelegramMessage(
+            message_id=603,
+            date=datetime.now(),
+            chat=TelegramChat(id=200, type="group"),
+            from_user=TelegramUser(id=702, is_bot=False, first_name="AdminUser"),
+            text="/delete",
+            reply_to_message=referenced_telegram_message,
+        )
+
+        with patch.object(self.telegram_cog, "get_by_telegram", new=AsyncMock(return_value=901)):
+            update = Update(update_id=3, message=command_telegram_message)
+            await self.telegram_cog.dp.feed_update(self.mock_aiogram_bot, update)
+
+        mock_channel.get_partial_message.assert_called_once_with(901)
+        mock_partial_discord_message.delete.assert_awaited_once()
+
+        self.mock_aiogram_bot.delete_message.assert_any_await(chat_id=200, message_id=602)
+        self.mock_aiogram_bot.delete_message.assert_any_await(chat_id=200, message_id=603)
+
+    async def test_delete_command_handler_without_reply_deletes_command_message_only(self) -> None:
+        mock_channel = MagicMock()
+        self.mock_bot.get_channel.return_value = mock_channel
+
+        command_telegram_message = TelegramMessage(
+            message_id=604,
+            date=datetime.now(),
+            chat=TelegramChat(id=200, type="group"),
+            from_user=TelegramUser(id=702, is_bot=False, first_name="AdminUser"),
+            text="/delete",
+            reply_to_message=None,
+        )
+
+        update = Update(update_id=4, message=command_telegram_message)
+        await self.telegram_cog.dp.feed_update(self.mock_aiogram_bot, update)
+
+        self.mock_aiogram_bot.delete_message.assert_awaited_once_with(chat_id=200, message_id=604)
+
     async def test_cog_lifecycle_and_unload(self) -> None:
         with patch.object(self.telegram_cog.check_updates, "start") as mock_start:
             self.telegram_cog.check_updates._is_running = False
