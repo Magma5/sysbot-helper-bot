@@ -98,3 +98,13 @@ class TestTimeCog(unittest.TestCase):
         # Test UTC time
         rendered_utc = template_engine.render_string("{{ time.utcnow.strftime('%Z') }}", template_variables)
         self.assertEqual(rendered_utc, "UTC")
+
+    def test_build_timezone_lookup_map_logging(self) -> None:
+        from sysbot_helper.cogs.time import build_timezone_lookup_map
+
+        build_timezone_lookup_map.cache_clear()
+        with self.assertLogs("sysbot_helper.cogs.time", level="INFO") as captured_logs:
+            lookup_map = build_timezone_lookup_map()
+            self.assertGreater(len(lookup_map), 0)
+            has_stats_log = any("Loaded" in line and "timezone aliases" in line for line in captured_logs.output)
+            self.assertTrue(has_stats_log)

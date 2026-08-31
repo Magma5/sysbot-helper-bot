@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator, Mapping
 from datetime import datetime
 from functools import cache
@@ -7,6 +8,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 from discord.ext import commands
 from pydantic import BaseModel, field_validator
 
+log = logging.getLogger(__name__)
+
 
 @cache
 def build_timezone_lookup_map() -> dict[str, ZoneInfo]:
@@ -14,8 +17,9 @@ def build_timezone_lookup_map() -> dict[str, ZoneInfo]:
     and city shortcuts to ZoneInfo objects.
     """
     lookup_map: dict[str, ZoneInfo] = {}
+    available_zones = available_timezones()
 
-    for timezone_name in available_timezones():
+    for timezone_name in available_zones:
         try:
             zone_info = ZoneInfo(timezone_name)
         except Exception:
@@ -40,6 +44,11 @@ def build_timezone_lookup_map() -> dict[str, ZoneInfo]:
         if city_no_underscore not in lookup_map:
             lookup_map[city_no_underscore] = zone_info
 
+    log.info(
+        "Loaded %d timezone aliases across %d IANA timezones.",
+        len(lookup_map),
+        len(available_zones),
+    )
     return lookup_map
 
 
@@ -108,6 +117,7 @@ class Time(commands.Cog):
     def __init__(self, bot, config: Config):
         self.bot = bot
         self.config = config
+        build_timezone_lookup_map()
 
     def server_now(self, ctx: Any) -> datetime:
         target_timezone_name: str = self.bot.guild_config(ctx.guild).get("timezone", self.config.timezone)
