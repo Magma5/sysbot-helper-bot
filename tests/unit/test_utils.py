@@ -11,6 +11,8 @@ from sysbot_helper.utils.ip import to_ipv4, to_ipv6
 class TestUtilsAndCogs(unittest.IsolatedAsyncioTestCase):
     def test_embed_from_dict(self) -> None:
         """Verifies converting dictionary data (including ISO8601 timestamps) to Discord Embed objects."""
+        from datetime import UTC, datetime
+
         data = {
             "title": "Test Title",
             "description": "Test Description",
@@ -20,6 +22,7 @@ class TestUtilsAndCogs(unittest.IsolatedAsyncioTestCase):
         embed = embed_from_dict(data)
         self.assertEqual(embed.title, "Test Title")
         self.assertEqual(embed.description, "Test Description")
+        self.assertEqual(embed.timestamp, datetime(2026, 8, 8, 0, 0, 0, tzinfo=UTC))
 
     def test_apply_obj_data(self) -> None:
         """Verifies applying method calls to objects dynamically."""
