@@ -234,21 +234,28 @@ class TestTelegramSync(unittest.IsolatedAsyncioTestCase):
         self.mock_aiogram_bot.delete_message.assert_awaited_once_with(chat_id=200, message_id=604)
 
     async def test_cog_lifecycle_and_unload(self) -> None:
-        with patch.object(self.telegram_cog.check_updates, "start") as mock_start:
-            self.telegram_cog.check_updates._is_running = False
+        with patch.object(self.telegram_cog.dp, "start_polling", new=AsyncMock()):
+            self.telegram_cog.polling_task = None
             await self.telegram_cog.on_ready()
-            mock_start.assert_called_once()
+            self.assertIsNotNone(self.telegram_cog.polling_task)
 
-        mock_close = AsyncMock()
+            # Idempotent second call should not replace active task
+            existing_task = self.telegram_cog.polling_task
+            await self.telegram_cog.on_ready()
+            self.assertIs(self.telegram_cog.polling_task, existing_task)
+
+        mock_stop_polling = AsyncMock()
+        mock_task = MagicMock()
+        mock_task.done.return_value = False
+        self.telegram_cog.polling_task = mock_task
         with (
-            patch.object(self.telegram_cog.check_updates, "cancel") as mock_cancel,
-            patch.object(self.telegram_cog.session, "close", new=mock_close),
+            patch("asyncio.create_task") as mock_create_task,
+            patch.object(self.telegram_cog.dp, "stop_polling", new=mock_stop_polling),
         ):
             self.telegram_cog.cog_unload()
-            mock_cancel.assert_called_once()
-            self.mock_bot.loop.create_task.assert_called_once()
-            await self.mock_bot.loop.create_task.call_args[0][0]
-            mock_close.assert_awaited_once()
+            mock_create_task.assert_called_once()
+            await mock_create_task.call_args[0][0]
+            mock_stop_polling.assert_awaited_once()
 
     async def test_discord_message_from_telegram_static_sticker_resampling(self) -> None:
         image_stream = BytesIO()

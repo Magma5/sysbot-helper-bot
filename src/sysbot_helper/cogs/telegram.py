@@ -1,16 +1,15 @@
+import asyncio
 import logging
-from asyncio.exceptions import CancelledError
 
 import aiogram
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.dispatcher.dispatcher import Dispatcher
-from aiogram.exceptions import AiogramError
 from aiogram.filters import Command
 from aiogram.types import BufferedInputFile, LinkPreviewOptions, ReplyParameters
 from aiogram.types import Message as TelegramMessage
 from discord import Attachment, Message, MessageReference
-from discord.ext import commands, tasks
+from discord.ext import commands
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -45,6 +44,7 @@ class Telegram(commands.Cog):
         # Setting up telegram objects
         self.session = AiohttpSession()
         self.dp = Dispatcher()
+        self.polling_task: asyncio.Task | None = None
 
         # A list of Telegram bots (aiogram.Bot) to poll for updates
         self.bots = {
@@ -145,12 +145,17 @@ class Telegram(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        if not self.check_updates.is_running():
-            self.check_updates.start()
+        if self.polling_task is None or self.polling_task.done():
+            self.polling_task = asyncio.create_task(
+                self.dp.start_polling(
+                    *self.bots.values(),
+                    handle_signals=False,
+                )
+            )
 
     def cog_unload(self):
-        self.check_updates.cancel()
-        self.bot.loop.create_task(self.session.close())
+        if self.polling_task and not self.polling_task.done():
+            asyncio.create_task(self.dp.stop_polling())
 
     @commands.Cog.listener()
     async def on_message(self, message: Message):
@@ -319,21 +324,3 @@ class Telegram(commands.Cog):
         existing_id = await self.get_by_telegram(message)
         if existing_id:
             await channel.get_partial_message(existing_id).edit(**msg)
-
-    @tasks.loop()
-    async def check_updates(self):
-        if self.bot.is_closed():
-            self.check_updates.cancel()
-            return
-
-        try:
-            await self.dp.start_polling(
-                *self.bots.values(),
-                polling_timeout=30,
-                handle_signals=False,
-            )
-        except CancelledError:
-            await self.session.close()
-            self.check_updates.cancel()
-        except AiogramError:
-            log.warning("Aiogram update polling encountered an error", exc_info=True)
