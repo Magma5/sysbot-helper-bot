@@ -1,4 +1,5 @@
 import logging
+import time
 from contextlib import suppress
 from datetime import datetime
 from importlib import import_module
@@ -123,6 +124,13 @@ class Bot(commands.Bot):
         if load_cogs:
             self.register_all_cogs(config)
 
+        self.start_time: float = time.monotonic()
+
+    @property
+    def uptime(self) -> float:
+        """The total uptime of the bot instance in seconds."""
+        return time.monotonic() - self.start_time
+
     def guild_config(self, guild):
         return self.get_config("guild", guild.id if guild else None)
 
@@ -156,7 +164,7 @@ class Bot(commands.Bot):
     def template_variables_base(self, ctx):
         result = {"ctx": ctx}
 
-        if hasattr(ctx, "author"):
+        if getattr(ctx, "author", None):
             result.update(name=ctx.author.name, mention=ctx.author.mention)
 
         return result

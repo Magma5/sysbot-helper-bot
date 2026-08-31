@@ -82,3 +82,13 @@ def test_bot_initialization_with_load_cogs_false(example_config_dict: dict) -> N
     config = copy.deepcopy(example_config_dict)
     bot_instance = Bot(config_dict=config, load_cogs=False)
     assert len(bot_instance.cog_list) == 0
+
+
+def test_bot_uptime_property(example_config_dict: dict) -> None:
+    """Verifies that the bot tracks start_time and uptime float property."""
+    config = copy.deepcopy(example_config_dict)
+    bot_instance = Bot(config_dict=config, load_cogs=False)
+    assert hasattr(bot_instance, "start_time")
+    assert isinstance(bot_instance.start_time, float)
+    assert isinstance(bot_instance.uptime, float)
+    assert bot_instance.uptime >= 0.0
