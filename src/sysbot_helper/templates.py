@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 
 import humanize
-from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
+from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader, Template
 from jinja2.sandbox import SandboxedEnvironment
+from jinja2.utils import LRUCache
 
 log = logging.getLogger(__name__)
 
@@ -167,14 +168,15 @@ class TemplateEngine:
         self.env.filters["intcomma"] = _filter_intcomma
         self.env.filters["ordinal"] = _filter_ordinal
 
-        self._compiled_cache = {}
+        self._compiled_cache: LRUCache[str, Template] = LRUCache(256)
 
-    def _compile_string(self, source: str):
-        if source not in self._compiled_cache:
-            if len(self._compiled_cache) >= 256:
-                self._compiled_cache.pop(next(iter(self._compiled_cache)))
-            self._compiled_cache[source] = self.env.from_string(source)
-        return self._compiled_cache[source]
+    def _compile_string(self, source: str) -> Template:
+        """Render an inline Jinja2 template string using Jinja's native LRU cache."""
+        template = self._compiled_cache.get(source)
+        if template is None:
+            template = self.env.from_string(source)
+            self._compiled_cache[source] = template
+        return template
 
     def render_string(self, source: str, context: dict[str, Any]) -> str:
         """Render an inline Jinja2 template string using cached compiled AST."""

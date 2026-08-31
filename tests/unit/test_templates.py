@@ -70,6 +70,27 @@ class TestTemplatesJinja(unittest.TestCase):
         )
         self.assertEqual(truncated_string, "aa...")
 
+    def test_template_string_lru_cache_eviction_and_reordering(self) -> None:
+        """Verifies that TemplateEngine._compiled_cache adheres to true LRU eviction semantics."""
+        template_engine: TemplateEngine = TemplateEngine()
+        template_engine._compiled_cache.capacity = 3  # Lower capacity for deterministic test
+
+        # Prime with 3 templates
+        template_engine.render_string("{{ 'a' }}", {})
+        template_engine.render_string("{{ 'b' }}", {})
+        template_engine.render_string("{{ 'c' }}", {})
+        self.assertEqual(len(template_engine._compiled_cache), 3)
+
+        # Access 'a' so 'b' becomes the least recently used
+        template_engine.render_string("{{ 'a' }}", {})
+
+        # Insert 'd', which should evict 'b' (LRU), keeping 'a' and 'c'
+        template_engine.render_string("{{ 'd' }}", {})
+        self.assertIn("{{ 'a' }}", template_engine._compiled_cache)
+        self.assertIn("{{ 'c' }}", template_engine._compiled_cache)
+        self.assertIn("{{ 'd' }}", template_engine._compiled_cache)
+        self.assertNotIn("{{ 'b' }}", template_engine._compiled_cache)
+
     def test_template_humanize_filters(self) -> None:
         from datetime import timedelta
 
