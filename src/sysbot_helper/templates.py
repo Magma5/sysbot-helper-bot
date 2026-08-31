@@ -28,46 +28,89 @@ def _filter_truncate_length(value: str, max_length: int = 2000) -> str:
     return text[: max_length - 3] + "..."
 
 
-def _filter_naturaldelta(value: Any, **kwargs: Any) -> str:
-    if isinstance(value, (int, float)):
-        value = timedelta(seconds=value)
+def _coerce_to_timedelta(value: Any) -> timedelta | None:
     if isinstance(value, timedelta):
-        return humanize.naturaldelta(value, **kwargs)
-    return str(value or "")
-
-
-def _filter_precisedelta(value: Any, **kwargs: Any) -> str:
+        return value
     if isinstance(value, (int, float)):
-        value = timedelta(seconds=value)
-    if isinstance(value, timedelta):
-        return humanize.precisedelta(value, **kwargs)
-    return str(value or "")
+        return timedelta(seconds=value)
+    if isinstance(value, str):
+        try:
+            return timedelta(seconds=float(value.strip()))
+        except (ValueError, TypeError):
+            pass
+    return None
 
 
-def _filter_naturaltime(value: Any, **kwargs: Any) -> str:
-    if isinstance(value, (int, float)):
-        value = timedelta(seconds=value)
+def _coerce_to_temporal(value: Any) -> datetime | date | timedelta | None:
     if isinstance(value, (datetime, date, timedelta)):
-        return humanize.naturaltime(value, **kwargs)
+        return value
+    if isinstance(value, (int, float)):
+        return timedelta(seconds=value)
+    if isinstance(value, str):
+        cleaned = value.strip()
+        try:
+            return datetime.fromisoformat(cleaned)
+        except (ValueError, TypeError):
+            pass
+        try:
+            return timedelta(seconds=float(cleaned))
+        except (ValueError, TypeError):
+            pass
+    return None
+
+
+def _filter_naturaldelta(value: Any, *args: Any, **kwargs: Any) -> str:
+    converted = _coerce_to_timedelta(value)
+    if converted is not None:
+        try:
+            return humanize.naturaldelta(converted, *args, **kwargs)
+        except Exception:
+            pass
+    return str(value or "")
+
+
+def _filter_precisedelta(value: Any, *args: Any, **kwargs: Any) -> str:
+    converted = _coerce_to_timedelta(value)
+    if converted is not None:
+        try:
+            return humanize.precisedelta(converted, *args, **kwargs)
+        except Exception:
+            pass
+    return str(value or "")
+
+
+def _filter_naturaltime(value: Any, *args: Any, **kwargs: Any) -> str:
+    converted = _coerce_to_temporal(value)
+    if converted is not None:
+        try:
+            return humanize.naturaltime(converted, *args, **kwargs)
+        except Exception:
+            pass
     return str(value or "")
 
 
 def _filter_naturaldate(value: Any) -> str:
     if isinstance(value, (datetime, date)):
         return humanize.naturaldate(value)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.strip())
+            return humanize.naturaldate(parsed)
+        except (ValueError, TypeError):
+            pass
     return str(value or "")
 
 
-def _filter_naturalsize(value: Any, **kwargs: Any) -> str:
+def _filter_naturalsize(value: Any, *args: Any, **kwargs: Any) -> str:
     try:
-        return humanize.naturalsize(value, **kwargs)
+        return humanize.naturalsize(value, *args, **kwargs)
     except (TypeError, ValueError):
         return str(value or "")
 
 
-def _filter_intcomma(value: Any) -> str:
+def _filter_intcomma(value: Any, *args: Any, **kwargs: Any) -> str:
     try:
-        return humanize.intcomma(value)
+        return humanize.intcomma(value, *args, **kwargs)
     except (TypeError, ValueError):
         return str(value or "")
 

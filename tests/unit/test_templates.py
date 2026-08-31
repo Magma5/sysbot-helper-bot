@@ -71,12 +71,10 @@ class TestTemplatesJinja(unittest.TestCase):
         self.assertEqual(truncated_string, "aa...")
 
     def test_template_humanize_filters(self) -> None:
-        """Verifies custom template filters provided by humanize."""
         from datetime import timedelta
 
         template_engine: TemplateEngine = TemplateEngine()
 
-        # naturaldelta & precisedelta
         rendered_natural = template_engine.render_string(
             "{{ delta | naturaldelta }}",
             {"delta": timedelta(hours=2)},
@@ -89,23 +87,44 @@ class TestTemplatesJinja(unittest.TestCase):
         )
         self.assertEqual(rendered_precise, "2 minutes and 5 seconds")
 
-        # naturalsize
-        rendered_size = template_engine.render_string(
+        rendered_str_delta = template_engine.render_string(
+            "{{ seconds_str | precisedelta }}",
+            {"seconds_str": "125"},
+        )
+        self.assertEqual(rendered_str_delta, "2 minutes and 5 seconds")
+
+        rendered_size_decimal = template_engine.render_string(
             "{{ bytes | naturalsize }}",
+            {"bytes": 1000000},
+        )
+        self.assertEqual(rendered_size_decimal, "1.0 MB")
+
+        rendered_size_binary = template_engine.render_string(
+            "{{ bytes | naturalsize(binary=True) }}",
             {"bytes": 1048576},
         )
-        self.assertEqual(rendered_size, "1.0 MB")
+        self.assertEqual(rendered_size_binary, "1.0 MiB")
 
-        # intcomma
         rendered_comma = template_engine.render_string(
             "{{ num | intcomma }}",
             {"num": 1234567},
         )
         self.assertEqual(rendered_comma, "1,234,567")
 
-        # ordinal
+        rendered_comma_digits = template_engine.render_string(
+            "{{ num | intcomma(ndigits=2) }}",
+            {"num": 12345.6789},
+        )
+        self.assertEqual(rendered_comma_digits, "12,345.68")
+
         rendered_ordinal = template_engine.render_string(
             "{{ rank | ordinal }}",
             {"rank": 44},
         )
         self.assertEqual(rendered_ordinal, "44th")
+
+        rendered_str_ordinal = template_engine.render_string(
+            "{{ rank_str | ordinal }}",
+            {"rank_str": "1"},
+        )
+        self.assertEqual(rendered_str_ordinal, "1st")
