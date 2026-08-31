@@ -69,3 +69,43 @@ class TestTemplatesJinja(unittest.TestCase):
             {},
         )
         self.assertEqual(truncated_string, "aa...")
+
+    def test_template_humanize_filters(self) -> None:
+        """Verifies custom template filters provided by humanize."""
+        from datetime import timedelta
+
+        template_engine: TemplateEngine = TemplateEngine()
+
+        # naturaldelta & precisedelta
+        rendered_natural = template_engine.render_string(
+            "{{ delta | naturaldelta }}",
+            {"delta": timedelta(hours=2)},
+        )
+        self.assertEqual(rendered_natural, "2 hours")
+
+        rendered_precise = template_engine.render_string(
+            "{{ seconds | precisedelta }}",
+            {"seconds": 125},
+        )
+        self.assertEqual(rendered_precise, "2 minutes and 5 seconds")
+
+        # naturalsize
+        rendered_size = template_engine.render_string(
+            "{{ bytes | naturalsize }}",
+            {"bytes": 1048576},
+        )
+        self.assertEqual(rendered_size, "1.0 MB")
+
+        # intcomma
+        rendered_comma = template_engine.render_string(
+            "{{ num | intcomma }}",
+            {"num": 1234567},
+        )
+        self.assertEqual(rendered_comma, "1,234,567")
+
+        # ordinal
+        rendered_ordinal = template_engine.render_string(
+            "{{ rank | ordinal }}",
+            {"rank": 44},
+        )
+        self.assertEqual(rendered_ordinal, "44th")

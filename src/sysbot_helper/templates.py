@@ -1,9 +1,10 @@
 import logging
 import re
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+import humanize
 from jinja2 import ChoiceLoader, DictLoader, FileSystemLoader
 from jinja2.sandbox import SandboxedEnvironment
 
@@ -25,6 +26,57 @@ def _filter_truncate_length(value: str, max_length: int = 2000) -> str:
     if len(text) <= max_length:
         return text
     return text[: max_length - 3] + "..."
+
+
+def _filter_naturaldelta(value: Any, **kwargs: Any) -> str:
+    if isinstance(value, (int, float)):
+        value = timedelta(seconds=value)
+    if isinstance(value, timedelta):
+        return humanize.naturaldelta(value, **kwargs)
+    return str(value or "")
+
+
+def _filter_precisedelta(value: Any, **kwargs: Any) -> str:
+    if isinstance(value, (int, float)):
+        value = timedelta(seconds=value)
+    if isinstance(value, timedelta):
+        return humanize.precisedelta(value, **kwargs)
+    return str(value or "")
+
+
+def _filter_naturaltime(value: Any, **kwargs: Any) -> str:
+    if isinstance(value, (int, float)):
+        value = timedelta(seconds=value)
+    if isinstance(value, (datetime, date, timedelta)):
+        return humanize.naturaltime(value, **kwargs)
+    return str(value or "")
+
+
+def _filter_naturaldate(value: Any) -> str:
+    if isinstance(value, (datetime, date)):
+        return humanize.naturaldate(value)
+    return str(value or "")
+
+
+def _filter_naturalsize(value: Any, **kwargs: Any) -> str:
+    try:
+        return humanize.naturalsize(value, **kwargs)
+    except (TypeError, ValueError):
+        return str(value or "")
+
+
+def _filter_intcomma(value: Any) -> str:
+    try:
+        return humanize.intcomma(value)
+    except (TypeError, ValueError):
+        return str(value or "")
+
+
+def _filter_ordinal(value: Any) -> str:
+    try:
+        return humanize.ordinal(int(value))
+    except (TypeError, ValueError):
+        return str(value or "")
 
 
 class TemplateEngine:
@@ -64,6 +116,13 @@ class TemplateEngine:
         self.env.filters["strftime"] = _filter_strftime
         self.env.filters["regex_replace"] = _filter_regex_replace
         self.env.filters["truncate_length"] = _filter_truncate_length
+        self.env.filters["naturaldelta"] = _filter_naturaldelta
+        self.env.filters["precisedelta"] = _filter_precisedelta
+        self.env.filters["naturaltime"] = _filter_naturaltime
+        self.env.filters["naturaldate"] = _filter_naturaldate
+        self.env.filters["naturalsize"] = _filter_naturalsize
+        self.env.filters["intcomma"] = _filter_intcomma
+        self.env.filters["ordinal"] = _filter_ordinal
 
         self._compiled_cache = {}
 

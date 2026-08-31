@@ -21,6 +21,7 @@ dependencies = [
     "python-slugify>=8.0.4,<9.0.0",
     "markdownify>=1.2.3,<2.0.0",
     "python-dateutil>=2.9.0.post0",
+    "humanize>=4.11.0,<5.0.0",
 ]
 
 [project.scripts]
