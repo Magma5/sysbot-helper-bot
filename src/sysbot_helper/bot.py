@@ -9,7 +9,6 @@ from types import SimpleNamespace
 import yaml
 from discord import ApplicationContext, Intents, Interaction, Message
 from discord.ext import commands
-from discord.ext.commands import Bot as Base
 from discord.ext.commands import Context
 from pydantic import BaseModel, TypeAdapter
 
@@ -21,12 +20,11 @@ from .utils import LazyContext
 log = logging.getLogger(__name__)
 
 
-class Bot(Base):
-    @classmethod
-    def cog_name(cls, key):
-        return "".join(map(str.capitalize, key.split("_")))
-
-    CONFIG_GROUP_MAPPINGS = {"sudo": "sudo", "sysbot_channels": "sysbots"}
+class Bot(commands.Bot):
+    CONFIG_GROUP_MAPPINGS = {
+        "sysbot_channels": "sysbots",
+        "sudo": "sudo",
+    }
 
     DEPRECATED_CONFIGS = {
         "guild_groups",
@@ -38,26 +36,30 @@ class Bot(Base):
     }
 
     @classmethod
-    def from_file(cls, config_file: Path | str, **bot_args) -> "Bot":
+    def cog_name(cls, key: str) -> str:
+        return "".join(map(str.capitalize, key.split("_")))
+
+    @classmethod
+    def from_file(cls, config_file: Path | str, load_cogs: bool = True, **bot_args) -> "Bot":
         """Alternative constructor to instantiate a Bot from a YAML configuration file path."""
         if isinstance(config_file, str):
             config_file = Path(config_file)
         log.info("Loading config file: %s", config_file)
         with config_file.open() as f:
             config = yaml.safe_load(f)
-        bot = cls(config, **bot_args)
+        bot = cls(config, load_cogs=load_cogs, **bot_args)
         bot.config_file = config_file
         return bot
 
     @classmethod
-    def validate_file(cls, config_file: Path | str, **bot_args) -> list[str]:
+    def validate_file(cls, config_file: Path | str, load_cogs: bool = True, **bot_args) -> list[str]:
         """Validates a configuration file without starting services or making network requests.
         Returns a list of loaded cog names if valid, or raises an exception if invalid.
         """
-        bot = cls.from_file(config_file, **bot_args)
+        bot = cls.from_file(config_file, load_cogs=load_cogs, **bot_args)
         return sorted(bot.cog_list)
 
-    def __init__(self, config_dict: dict, **bot_args):
+    def __init__(self, config_dict: dict, load_cogs: bool = True, **bot_args):
         intents = Intents.default()
         intents.members = True
         intents.message_content = True
@@ -118,7 +120,8 @@ class Bot(Base):
             self.api = APIServer(self, enabled=True, **api_config)
 
         # Register cogs based on configs
-        self.register_all_cogs(config)
+        if load_cogs:
+            self.register_all_cogs(config)
 
     def guild_config(self, guild):
         return self.get_config("guild", guild.id if guild else None)
@@ -164,6 +167,9 @@ class Bot(Base):
             # Check package name must be valid Python identifiers
             if not str.isidentifier(pkg_name):
                 log.error("Invalid package name! %s", pkg_name)
+                continue
+
+            if not isinstance(configs, dict):
                 continue
 
             for cog_key, cog_config in configs.items():

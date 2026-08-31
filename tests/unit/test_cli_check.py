@@ -35,3 +35,13 @@ async def test_run_config_check_invalid_config(mock_file, mock_exists) -> None:
     """Verifies that run_config_check returns 1 for invalid config contents using in-memory mock."""
     exit_code = run_config_check([Path("dummy_invalid.yml")])
     assert exit_code == 1
+
+
+@pytest.mark.asyncio
+async def test_run_config_check_with_load_cogs_false() -> None:
+    """Verifies that run_config_check works with load_cogs=False."""
+    exit_code_none = run_config_check([Path("config.example.yml")], load_cogs=False)
+    assert exit_code_none == 0
+
+    cogs_none = Bot.validate_file("config.example.yml", load_cogs=False)
+    assert len(cogs_none) == 0

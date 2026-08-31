@@ -29,26 +29,33 @@ def bot_main():
         action="store_true",
         help="Validate the configuration file(s) and exit without starting services.",
     )
+    parser.add_argument(
+        "--load-cogs",
+        type=str,
+        default="true",
+        help="Whether to load cogs from configuration (--load-cogs=false to disable).",
+    )
     parser.add_argument("--alembic", nargs=argparse.REMAINDER, help="Invoke alembic command.")
 
     # Run argument parser
     args = parser.parse_args()
+    load_cogs = args.load_cogs.lower() != "false" if args.load_cogs else True
 
     # Run configuration check and exit if requested
     if args.check:
-        raise SystemExit(run_config_check(args.config_file))
+        raise SystemExit(run_config_check(args.config_file, load_cogs=load_cogs))
 
     # Run alembic migration and exit if needed
     if args.alembic is not None:
         return run_alembic(args.config_file, args.alembic)
 
     try:
-        asyncio.run(bot_start(args.config_file))
+        asyncio.run(bot_start(args.config_file, load_cogs=load_cogs))
     except KeyboardInterrupt:
         log.info("Shutdown signal received (SIGINT). Exiting cleanly.")
 
 
-def run_config_check(config_files: list[Path]) -> int:
+def run_config_check(config_files: list[Path], load_cogs: bool = True) -> int:
     """Validate configuration files and return exit status code (0 for success, 1 for failure)."""
     has_errors = False
     for config_file in config_files:
@@ -58,7 +65,7 @@ def run_config_check(config_files: list[Path]) -> int:
             continue
 
         try:
-            cogs = Bot.validate_file(config_file)
+            cogs = Bot.validate_file(config_file, load_cogs=load_cogs)
             log.info("[OK] Config file '%s' is valid (%d cogs loaded: %s)", config_file, len(cogs), ", ".join(cogs))
         except Exception as err:
             log.error("[FAIL] Config file '%s' validation error: %s: %s", config_file, type(err).__name__, err)
@@ -94,7 +101,7 @@ def run_alembic(config_files: list[Path], alembic_argv):
         return cmd.run_cmd(cfg, options)
 
 
-async def bot_start(config_files):
+async def bot_start(config_files: list[Path], load_cogs: bool = True):
     # Initialize and start all the bots
-    futures = (Bot.from_file(config).start() for config in config_files)
+    futures = (Bot.from_file(config, load_cogs=load_cogs).start() for config in config_files)
     await asyncio.gather(*futures)

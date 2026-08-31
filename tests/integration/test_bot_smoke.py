@@ -75,3 +75,10 @@ def test_bot_initialization_without_api_config(example_config_dict: dict) -> Non
     loaded_cog_names: set[str] = set(bot_instance.cog_list)
     assert "ApiHealth" in loaded_cog_names
     assert "ApiMessages" in loaded_cog_names
+
+
+def test_bot_initialization_with_load_cogs_false(example_config_dict: dict) -> None:
+    """Verifies that the bot loads zero cogs when load_cogs is set to False."""
+    config = copy.deepcopy(example_config_dict)
+    bot_instance = Bot(config_dict=config, load_cogs=False)
+    assert len(bot_instance.cog_list) == 0
