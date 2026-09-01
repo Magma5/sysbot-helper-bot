@@ -145,14 +145,19 @@ class TaskScheduler:
             return
         self.tick_task = asyncio.create_task(self.run_loop())
 
-    def stop(self) -> None:
+    async def stop(self) -> None:
         """Stops the scheduler execution tick loop and cancels active background tasks."""
         if self.tick_task:
             self.tick_task.cancel()
             self.tick_task = None
-        for bg_task in list(self.bg_tasks):
-            if not bg_task.done():
-                bg_task.cancel()
+        active_tasks = [bg_task for bg_task in self.bg_tasks if not bg_task.done()]
+        for bg_task in active_tasks:
+            bg_task.cancel()
+        if active_tasks:
+            await asyncio.gather(*active_tasks, return_exceptions=True)
+            for task in active_tasks:
+                if not task.cancelled() and task.exception() is not None:
+                    log.exception("Unhandled exception during scheduler teardown", exc_info=task.exception())
         self.bg_tasks.clear()
 
     async def run_loop(self) -> None:

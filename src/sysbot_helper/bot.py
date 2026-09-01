@@ -13,6 +13,7 @@ from discord.ext import commands
 from discord.ext.commands import Context
 from pydantic import BaseModel, TypeAdapter
 
+from .api import APIRouter, APIServer
 from .groups import Groups
 from .schedule import TaskScheduler
 from .templates import TemplateEngine
@@ -91,6 +92,7 @@ class Bot(commands.Bot):
         self.template_engine = TemplateEngine(template_dirs=["templates"])
         self.features = set()
         self.scheduler = TaskScheduler(self, scheduled_tasks_timeout=300)
+        self.engine = None
 
         # Load database
         with suppress(KeyError):
@@ -113,8 +115,6 @@ class Bot(commands.Bot):
 
         # Initialize API framework
         api_config = config.pop("api", None)
-        from .api import APIServer
-
         if api_config is None:
             self.api = APIServer(self, enabled=False)
         else:
@@ -255,8 +255,8 @@ class Bot(commands.Bot):
         from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
         from sqlalchemy.orm import sessionmaker
 
-        engine = create_async_engine(database_url)
-        self.Session = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+        self.engine = create_async_engine(database_url)
+        self.Session = sessionmaker(self.engine, expire_on_commit=False, class_=AsyncSession)
         self.features.add("database")
 
     def template_variables(self, ctx):
@@ -306,14 +306,18 @@ class Bot(commands.Bot):
     async def start(self):
         await super().start(self.token)
 
+    async def close(self) -> None:
+        await self.api.stop()
+        await self.scheduler.stop()
+        await super().close()
+        if self.engine:
+            await self.engine.dispose()
+
     def add_cog(self, cog: commands.Cog) -> None:
         super().add_cog(cog)
         self.scheduler.register_cog_tasks(cog)
-        if getattr(self, "api", None):
-            from .api import APIRouter
-
-            if hasattr(cog, "router") and isinstance(cog.router, APIRouter):
-                self.api.add_router(cog.router, instance=cog)
+        if isinstance(getattr(cog, "router", None), APIRouter):
+            self.api.add_router(cog.router, instance=cog)
 
     def remove_cog(self, name: str) -> commands.Cog | None:
         cog = super().remove_cog(name)
