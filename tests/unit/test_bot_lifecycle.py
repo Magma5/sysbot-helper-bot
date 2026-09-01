@@ -1,8 +1,11 @@
+import asyncio
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from discord.ext import commands
 
+from sysbot_helper import bot_start
 from sysbot_helper.api import APIRouter
 from sysbot_helper.bot import Bot
 
@@ -74,7 +77,8 @@ async def test_bot_set_database_initialization():
         mock_create_engine.assert_called_once_with("sqlite+aiosqlite:///:memory:")
 
 
-def test_bot_add_cog_registers_api_router():
+@pytest.mark.asyncio
+async def test_bot_add_cog_registers_api_router():
     bot = Bot({"token": "FAKE_TOKEN"}, load_cogs=False)
     bot.api.add_router = MagicMock()
 
@@ -84,5 +88,18 @@ def test_bot_add_cog_registers_api_router():
 
     cog = CogWithRouter()
     bot.add_cog(cog)
-
     bot.api.add_router.assert_called_once_with(cog.router, instance=cog)
+
+
+@pytest.mark.asyncio
+async def test_bot_start_signal_handling_and_teardown():
+    mock_bot_instance = MagicMock()
+    mock_bot_instance.start = AsyncMock(side_effect=asyncio.CancelledError)
+    mock_bot_instance.close = AsyncMock()
+
+    with patch.object(Bot, "from_file", return_value=mock_bot_instance):
+        with pytest.raises(asyncio.CancelledError):
+            await bot_start([Path("config.yml")], load_cogs=False)
+
+    mock_bot_instance.start.assert_awaited_once()
+    mock_bot_instance.close.assert_awaited_once()

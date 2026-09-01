@@ -1,6 +1,8 @@
 import argparse
 import asyncio
 import logging
+import signal
+from contextlib import suppress
 from pathlib import Path
 
 import yaml
@@ -51,8 +53,8 @@ def bot_main():
 
     try:
         asyncio.run(bot_start(args.config_file, load_cogs=load_cogs))
-    except KeyboardInterrupt:
-        log.info("Shutdown signal received (SIGINT). Exiting cleanly.")
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        log.info("Shutdown signal received. Exiting cleanly.")
 
 
 def run_config_check(config_files: list[Path], load_cogs: bool = True) -> int:
@@ -102,6 +104,15 @@ def run_alembic(config_files: list[Path], alembic_argv):
 
 
 async def bot_start(config_files: list[Path], load_cogs: bool = True):
-    # Initialize and start all the bots
-    futures = (Bot.from_file(config, load_cogs=load_cogs).start() for config in config_files)
-    await asyncio.gather(*futures)
+    loop = asyncio.get_running_loop()
+    main_task = asyncio.current_task()
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        with suppress(NotImplementedError):
+            loop.add_signal_handler(sig, main_task.cancel)
+
+    bots = [Bot.from_file(config, load_cogs=load_cogs) for config in config_files]
+    try:
+        await asyncio.gather(*(bot.start() for bot in bots))
+    finally:
+        await asyncio.gather(*(bot.close() for bot in bots), return_exceptions=True)
